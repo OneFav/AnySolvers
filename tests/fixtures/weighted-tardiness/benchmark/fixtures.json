@@ -1,0 +1,1046 @@
+{
+  "schema_version": 1,
+  "valid": [
+    {
+      "name": "six_jobs_mixed_hand_calculation",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F"
+        ]
+      },
+      "expected": {
+        "score": 34,
+        "metrics": {
+          "weighted_tardiness": 34,
+          "total_tardiness": 13,
+          "tardy_jobs": 4,
+          "makespan": 15
+        },
+        "trace": [
+          {
+            "id": "A",
+            "start": 0,
+            "completion": 3,
+            "due": 4,
+            "tardiness": 0,
+            "weight": 2,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "B",
+            "start": 3,
+            "completion": 5,
+            "due": 3,
+            "tardiness": 2,
+            "weight": 4,
+            "weighted_tardiness": 8
+          },
+          {
+            "id": "C",
+            "start": 5,
+            "completion": 6,
+            "due": 7,
+            "tardiness": 0,
+            "weight": 3,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "D",
+            "start": 6,
+            "completion": 10,
+            "due": 5,
+            "tardiness": 5,
+            "weight": 1,
+            "weighted_tardiness": 5
+          },
+          {
+            "id": "E",
+            "start": 10,
+            "completion": 12,
+            "due": 9,
+            "tardiness": 3,
+            "weight": 5,
+            "weighted_tardiness": 15
+          },
+          {
+            "id": "F",
+            "start": 12,
+            "completion": 15,
+            "due": 12,
+            "tardiness": 3,
+            "weight": 2,
+            "weighted_tardiness": 6
+          }
+        ]
+      }
+    },
+    {
+      "name": "six_jobs_spt_hand_calculation",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "C",
+          "B",
+          "E",
+          "A",
+          "F",
+          "D"
+        ]
+      },
+      "expected": {
+        "score": 18,
+        "metrics": {
+          "weighted_tardiness": 18,
+          "total_tardiness": 14,
+          "tardy_jobs": 2,
+          "makespan": 15
+        },
+        "trace": [
+          {
+            "id": "C",
+            "start": 0,
+            "completion": 1,
+            "due": 7,
+            "tardiness": 0,
+            "weight": 3,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "B",
+            "start": 1,
+            "completion": 3,
+            "due": 3,
+            "tardiness": 0,
+            "weight": 4,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "E",
+            "start": 3,
+            "completion": 5,
+            "due": 9,
+            "tardiness": 0,
+            "weight": 5,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "A",
+            "start": 5,
+            "completion": 8,
+            "due": 4,
+            "tardiness": 4,
+            "weight": 2,
+            "weighted_tardiness": 8
+          },
+          {
+            "id": "F",
+            "start": 8,
+            "completion": 11,
+            "due": 12,
+            "tardiness": 0,
+            "weight": 2,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "D",
+            "start": 11,
+            "completion": 15,
+            "due": 5,
+            "tardiness": 10,
+            "weight": 1,
+            "weighted_tardiness": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "eight_jobs_all_on_time",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 1,
+            "w": 2,
+            "d": 200
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 200
+          },
+          {
+            "id": "C",
+            "p": 3,
+            "w": 6,
+            "d": 200
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 8,
+            "d": 200
+          },
+          {
+            "id": "E",
+            "p": 5,
+            "w": 10,
+            "d": 200
+          },
+          {
+            "id": "F",
+            "p": 6,
+            "w": 1,
+            "d": 200
+          },
+          {
+            "id": "G",
+            "p": 7,
+            "w": 3,
+            "d": 200
+          },
+          {
+            "id": "H",
+            "p": 8,
+            "w": 5,
+            "d": 200
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G",
+          "H"
+        ]
+      },
+      "expected": {
+        "score": 0,
+        "metrics": {
+          "weighted_tardiness": 0,
+          "total_tardiness": 0,
+          "tardy_jobs": 0,
+          "makespan": 36
+        },
+        "trace": [
+          {
+            "id": "A",
+            "start": 0,
+            "completion": 1,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 2,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "B",
+            "start": 1,
+            "completion": 3,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 4,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "C",
+            "start": 3,
+            "completion": 6,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 6,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "D",
+            "start": 6,
+            "completion": 10,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 8,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "E",
+            "start": 10,
+            "completion": 15,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 10,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "F",
+            "start": 15,
+            "completion": 21,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 1,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "G",
+            "start": 21,
+            "completion": 28,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 3,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "H",
+            "start": 28,
+            "completion": 36,
+            "due": 200,
+            "tardiness": 0,
+            "weight": 5,
+            "weighted_tardiness": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "ten_jobs_zero_due_and_exact_due",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 2,
+            "w": 1,
+            "d": 0
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "C",
+            "p": 2,
+            "w": 3,
+            "d": 5
+          },
+          {
+            "id": "D",
+            "p": 2,
+            "w": 4,
+            "d": 10
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 2,
+            "w": 6,
+            "d": 12
+          },
+          {
+            "id": "G",
+            "p": 2,
+            "w": 7,
+            "d": 13
+          },
+          {
+            "id": "H",
+            "p": 2,
+            "w": 8,
+            "d": 16
+          },
+          {
+            "id": "I",
+            "p": 2,
+            "w": 9,
+            "d": 17
+          },
+          {
+            "id": "J",
+            "p": 2,
+            "w": 10,
+            "d": 20
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G",
+          "H",
+          "I",
+          "J"
+        ]
+      },
+      "expected": {
+        "score": 26,
+        "metrics": {
+          "weighted_tardiness": 26,
+          "total_tardiness": 6,
+          "tardy_jobs": 5,
+          "makespan": 20
+        },
+        "trace": [
+          {
+            "id": "A",
+            "start": 0,
+            "completion": 2,
+            "due": 0,
+            "tardiness": 2,
+            "weight": 1,
+            "weighted_tardiness": 2
+          },
+          {
+            "id": "B",
+            "start": 2,
+            "completion": 4,
+            "due": 4,
+            "tardiness": 0,
+            "weight": 2,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "C",
+            "start": 4,
+            "completion": 6,
+            "due": 5,
+            "tardiness": 1,
+            "weight": 3,
+            "weighted_tardiness": 3
+          },
+          {
+            "id": "D",
+            "start": 6,
+            "completion": 8,
+            "due": 10,
+            "tardiness": 0,
+            "weight": 4,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "E",
+            "start": 8,
+            "completion": 10,
+            "due": 9,
+            "tardiness": 1,
+            "weight": 5,
+            "weighted_tardiness": 5
+          },
+          {
+            "id": "F",
+            "start": 10,
+            "completion": 12,
+            "due": 12,
+            "tardiness": 0,
+            "weight": 6,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "G",
+            "start": 12,
+            "completion": 14,
+            "due": 13,
+            "tardiness": 1,
+            "weight": 7,
+            "weighted_tardiness": 7
+          },
+          {
+            "id": "H",
+            "start": 14,
+            "completion": 16,
+            "due": 16,
+            "tardiness": 0,
+            "weight": 8,
+            "weighted_tardiness": 0
+          },
+          {
+            "id": "I",
+            "start": 16,
+            "completion": 18,
+            "due": 17,
+            "tardiness": 1,
+            "weight": 9,
+            "weighted_tardiness": 9
+          },
+          {
+            "id": "J",
+            "start": 18,
+            "completion": 20,
+            "due": 20,
+            "tardiness": 0,
+            "weight": 10,
+            "weighted_tardiness": 0
+          }
+        ]
+      }
+    }
+  ],
+  "invalid_inputs": [
+    {
+      "name": "missing_jobs",
+      "case": {},
+      "error_contains": "exactly the key 'jobs'"
+    },
+    {
+      "name": "boolean_processing_time",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": true,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "error_contains": ".p must be an integer"
+    },
+    {
+      "name": "duplicate_input_id",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "A",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "error_contains": "duplicate job id"
+    },
+    {
+      "name": "unexpected_job_field",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4,
+            "release": 0
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "error_contains": "exactly id, p, w, d"
+    },
+    {
+      "name": "too_few_jobs",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          }
+        ]
+      },
+      "error_contains": "2 to 12"
+    }
+  ],
+  "invalid_solutions": [
+    {
+      "name": "missing_job",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E"
+        ]
+      },
+      "error_contains": "every job exactly once"
+    },
+    {
+      "name": "duplicate_job",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "E"
+        ]
+      },
+      "error_contains": "duplicate job ids"
+    },
+    {
+      "name": "unknown_job",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "Z"
+        ]
+      },
+      "error_contains": "exactly the input job ids"
+    },
+    {
+      "name": "numeric_job_id",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          6
+        ]
+      },
+      "error_contains": "entries must be strings"
+    },
+    {
+      "name": "unexpected_solution_field",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F"
+        ],
+        "score": 0
+      },
+      "error_contains": "exactly the key 'order'"
+    },
+    {
+      "name": "order_not_list",
+      "case": {
+        "jobs": [
+          {
+            "id": "A",
+            "p": 3,
+            "w": 2,
+            "d": 4
+          },
+          {
+            "id": "B",
+            "p": 2,
+            "w": 4,
+            "d": 3
+          },
+          {
+            "id": "C",
+            "p": 1,
+            "w": 3,
+            "d": 7
+          },
+          {
+            "id": "D",
+            "p": 4,
+            "w": 1,
+            "d": 5
+          },
+          {
+            "id": "E",
+            "p": 2,
+            "w": 5,
+            "d": 9
+          },
+          {
+            "id": "F",
+            "p": 3,
+            "w": 2,
+            "d": 12
+          }
+        ]
+      },
+      "solution": {
+        "order": "ABCDEF"
+      },
+      "error_contains": "order must be a list"
+    }
+  ]
+}

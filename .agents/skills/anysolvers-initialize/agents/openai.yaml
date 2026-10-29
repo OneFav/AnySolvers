@@ -1,0 +1,6 @@
+interface:
+  display_name: "AnySolvers · 初始化"
+  short_description: "通过交互明确任务与算力，建立可复用的实例、仿真评测环境和初始想法"
+  default_prompt: "使用 $anysolvers-initialize，通过交互补齐我的任务需求、数据来源和计算资源，建立可复用的 AnySolvers 工作环境，先不启动研究。"
+policy:
+  allow_implicit_invocation: false

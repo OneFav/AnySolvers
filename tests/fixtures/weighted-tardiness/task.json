@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "task_id": "weighted-tardiness",
+  "version": "1.0.1",
+  "description_file": "task.md",
+  "objective": {
+    "name": "weighted_tardiness",
+    "direction": "minimize",
+    "aggregation": "mean_if_all_valid"
+  }
+}

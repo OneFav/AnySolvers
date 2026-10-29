@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "source_file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entrypoint": {
+      "const": "solve(case)"
+    },
+    "dependencies": {
+      "const": []
+    },
+    "parent_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,95}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "task_id",
+    "source_file",
+    "entrypoint",
+    "dependencies",
+    "parent_id",
+    "rationale",
+    "session_id"
+  ],
+  "additionalProperties": false
+}

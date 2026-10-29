@@ -1,0 +1,52 @@
+schema_version: 5
+purpose: lightweight_validation
+task: tests/fixtures/tiny-knapsack/task.json
+agent:
+  backend: current-conversation
+  native_subagents: true
+  defaults:
+    model: gpt-6.1-sol
+    reasoning_effort: high
+  profiles:
+    setup: {}
+    research: {}
+compute:
+  executor: local-docker
+  image: sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
+  max_parallel_evaluations: 3
+  # Lightweight fixture only; initialization recommends limits for the actual task.
+  evaluation_wall_s: 960
+  limits:
+    wall_s: 10
+    cpu_s: 2
+    memory_mb: 128
+    pids: 32
+    output_bytes: 65536
+    tmp_mb: 16
+budgets:
+  researchers: 2
+  rounds_per_researcher: 2
+  session_wall_s: 2400
+  run_wall_s: 345600
+  evaluation_calls: null
+  probe_calls: 0
+  max_cases_per_dataset: null
+final:
+  authorized: true
+modules:
+  task:
+    use: modules/task/problem_spec
+  datasets:
+    use: modules/datasets/stratified_holdout
+  ideas:
+    use: modules/ideas/diverse_hypotheses
+  research:
+    use: modules/research/notebook_collaboration
+  evaluation:
+    use: modules/evaluation/queued_sandbox
+  selections:
+    use: modules/selections/evidence_iteration
+  final:
+    use: modules/final/frozen_holdout
+  visualization:
+    use: modules/visualization/evidence_charts

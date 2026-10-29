@@ -1,0 +1,6 @@
+interface:
+  display_name: "AnySolvers · 研究与最终评测"
+  short_description: "复用已初始化的任务，明确本批预算与配置，启动研究循环并完成最终评测"
+  default_prompt: "使用 $anysolvers-research，复用我指定的 study，补齐本批预算与配置后启动研究循环，并在冻结候选后执行最终评测和可视化。"
+policy:
+  allow_implicit_invocation: false

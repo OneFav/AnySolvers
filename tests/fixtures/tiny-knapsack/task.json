@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "task_id": "tiny-knapsack",
+  "version": "1.0.1",
+  "description_file": "task.md",
+  "objective": {
+    "name": "selected_value",
+    "direction": "maximize",
+    "aggregation": "mean_if_all_valid"
+  }
+}

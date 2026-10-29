@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "optional_id": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "references": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "iteration_id": {
+      "$ref": "#/$defs/id"
+    },
+    "parent_candidate": {
+      "$ref": "#/$defs/optional_id"
+    },
+    "source_idea_ids": {
+      "$ref": "#/$defs/references"
+    },
+    "evidence_ids": {
+      "$ref": "#/$defs/references"
+    },
+    "history_iteration_ids": {
+      "$ref": "#/$defs/references"
+    },
+    "observations": {
+      "$ref": "#/$defs/text"
+    },
+    "hypothesis": {
+      "$ref": "#/$defs/text"
+    },
+    "algorithm_changes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "expected_effect": {
+      "$ref": "#/$defs/text"
+    },
+    "test_plan": {
+      "$ref": "#/$defs/text"
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rationale": {
+      "$ref": "#/$defs/text"
+    },
+    "author_session": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "iteration_id",
+    "parent_candidate",
+    "source_idea_ids",
+    "evidence_ids",
+    "history_iteration_ids",
+    "observations",
+    "hypothesis",
+    "algorithm_changes",
+    "expected_effect",
+    "test_plan",
+    "risks",
+    "rationale",
+    "author_session"
+  ],
+  "additionalProperties": false,
+  "anyOf": [
+    {
+      "properties": {
+        "source_idea_ids": {
+          "minItems": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "evidence_ids": {
+          "minItems": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "history_iteration_ids": {
+          "minItems": 1
+        }
+      }
+    }
+  ]
+}

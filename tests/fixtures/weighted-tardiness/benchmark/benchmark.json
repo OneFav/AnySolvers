@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "weighted-tardiness-function",
+  "task_id": "weighted-tardiness",
+  "protocol": {
+    "kind": "function"
+  },
+  "evaluator_file": "datasets/runtime/evaluate.py",
+  "baseline_file": "datasets/runtime/baseline.py",
+  "tests_file": "datasets/runtime/fixtures.json",
+  "support_files": []
+}

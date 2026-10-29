@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evaluation summary",
+  "type": "object",
+  "properties": {
+    "evaluation_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "status": {
+      "enum": [
+        "running",
+        "completed",
+        "failed"
+      ]
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "dataset_id": {
+      "type": "string"
+    },
+    "dataset_purpose": {
+      "enum": [
+        "anchor",
+        "challenge",
+        "final"
+      ]
+    },
+    "probe": {
+      "type": "boolean"
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "all_valid": {
+      "type": "boolean"
+    },
+    "total_cases": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "completed_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "valid_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "infrastructure_error": {
+      "type": "boolean"
+    },
+    "cleanup_confirmed": {
+      "type": "boolean"
+    },
+    "details_file": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "evaluation_id",
+    "status",
+    "candidate_id",
+    "dataset_id",
+    "dataset_purpose",
+    "probe",
+    "score",
+    "all_valid",
+    "total_cases",
+    "completed_cases",
+    "valid_cases",
+    "infrastructure_error",
+    "cleanup_confirmed",
+    "details_file"
+  ],
+  "additionalProperties": true
+}
