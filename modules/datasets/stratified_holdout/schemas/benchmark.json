@@ -61,7 +61,8 @@
     },
     "tests_file": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Initialization-relative path to a JSON fixtures object matching schemas/fixtures.json, not a Python test script."
     },
     "support_files": {
       "type": "array",

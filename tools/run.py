@@ -13,6 +13,7 @@ import yaml
 from tools.common import (ROOT, contained, digest, event, file_ref, identifier, load_run,
     mutation, parse_json, read_pinned, read_plugin, read_json, read_yaml, run_path, safe_boundary,
     save_state, sha, utc, validate, working_file_changes, workspace_file, write_json)
+from tools import common as c
 from tools.execution import resolve, template, validate_execution
 from tools.configuration import effective, overlay, read_base
 from tools.module_runtime import compatible, invoke, read_module, resolve_bindings
@@ -88,23 +89,25 @@ def _init(run_id, config_path, researchers, rounds, initialization, manifest):
                                              for r in manifest['deliveries']['dataset'].values()):
         raise ValueError('authorized final evaluation requires a shared final dataset')
     cfg.update(run_id=run_id, created_at=utc())
-    pinpaths = [*(p for p in sorted((ROOT/'tools').glob('*.py')) if p.name != 'archive.py'),
-                ROOT/'tools/schemas.json']
-    cfg['_pins'] = {str(p.relative_to(ROOT)):file_ref(p) for p in pinpaths}
+    pinpaths = [*(p for p in sorted((c.ENGINE_ROOT/'tools').glob('*.py')) if p.name != 'archive.py'),
+                c.ENGINE_ROOT/'tools/schemas.json']
+    cfg['_pins'] = {c.logical_path(p):file_ref(p) for p in pinpaths}
+    cfg['implementation_sha'] = c.implementation_digest(cfg)
     validate('config', cfg)
     base_ref = file_ref(contained(ROOT,config_path))
     if read_base(config_path) != base:
         raise ValueError('base configuration changed during initialization')
     read_pinned(shared_ref, 'shared initialization manifest')
-    lock = {key:copy.deepcopy(cfg[key]) for key in ('run_id','created_at','task','modules','_pins','initialization')}
+    lock = {key:copy.deepcopy(cfg[key]) for key in ('run_id','created_at','task','modules','_pins','initialization','implementation_sha')}
     lock.update(base=base_ref, document_sha=digest(document))
     if effective(document,lock) != cfg:
         raise ValueError('resolved configuration mismatch')
     run.mkdir(exist_ok=True)
+    c.sync_directory(run.parent)
     for relative in ('research/candidates','research/evaluations','research/selections',
                      'research/datasets','research/ideas','final','visualization'):
         contained(run,relative).mkdir(parents=True,exist_ok=True)
-    document_path.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False))
+    c.atomic_write(document_path, yaml.safe_dump(document, allow_unicode=True, sort_keys=False).encode())
     state = {'schema_version':2,'config_sha':digest(cfg),'created_at':cfg['created_at'],
              'configuration':lock,
              'sessions':[], 'deliveries':{k:{} for k in ('dataset','candidate','ideas','figure','report','iteration')},
@@ -179,8 +182,11 @@ def inspect(args):
     historical=read_yaml(run/'run.yaml')['schema_version'] in (2,3,4,6,7)
     if args.command=='config':return cfg
     if args.command=='check':
+        if not historical:
+            invoke(cfg, 'research', 'audit', run, cfg, state)
         return {'ok':True,'config_sha':state['config_sha'],
                 'sealed_artifacts':sum(map(len,state['deliveries'].values())),
+                'implementation_sha':cfg.get('implementation_sha'),
                 'historical_read_only':historical,
                 'working_file_changes':working_file_changes(cfg) if historical else []}
     if args.command in ('module','plugin'):
@@ -213,6 +219,10 @@ def command(args):
             return resolve(cfg,_slot(args),args.role)
     if args.command=='init':return init(args.run,getattr(args,'config',None),
                                       getattr(args,'researchers',None),getattr(args,'rounds',None))
+    if args.command == 'reconcile-evaluation':
+        require_mutable(args.run)
+        _, cfg, _ = load_run(args.run)
+        return invoke(cfg, 'evaluation', 'reconcile', args.run, args.evaluation)
     if args.command in ('config','check','status','module','plugin'):
         return inspect(args)
     require_mutable(args.run)
@@ -237,6 +247,7 @@ def command(args):
             document.setdefault('modules',{}).setdefault(args.slot,{})['use']=args.path
             lock=copy.deepcopy(state['configuration'])
             lock['modules'][args.slot]=new;lock['document_sha']=digest(document)
+            lock['implementation_sha']=c.implementation_digest(lock)
             cfg=effective(document,lock);validate_execution(cfg)
             previous=file_ref(run/'run.yaml');previous_config_sha=state['config_sha']
             old_config=(run/'run.yaml').read_bytes();old_state=(run/'state.json').read_bytes()
@@ -250,6 +261,17 @@ def command(args):
                   previous_config=previous['sha'],previous_config_sha=previous_config_sha,
                   config_sha=state['config_sha'])
             return {'slot':args.slot,'module':new['id'],'sha':new['sha']}
+        if args.command == 'reconcile-exchange':
+            return invoke(cfg, 'research', 'reconcile', run, cfg, state)
+        if args.command == 'recommendation':
+            return invoke(cfg, 'final', 'recommendation', run, cfg, state)
+        if args.command == 'method-reports':
+            return invoke(cfg, 'selections', 'pending_reports', run, cfg, state)
+        if args.command == 'method-report-context':
+            return invoke(cfg, 'selections', 'report_context', run, cfg, state, args.session)
+        if args.command == 'method-report-submit':
+            return invoke(cfg, 'selections', 'report_submit', run, cfg, state, args.session,
+                          read_json(contained(run, args.manifest)))
         if args.command=='deliver':return deliver(run,cfg,state,args.kind,args.manifest,_slot(args))
         if args.command=='select':return select(run,cfg,state,args.candidate)
         if args.command=='iteration-context':
@@ -284,7 +306,7 @@ def main():
     source=spec.add_mutually_exclusive_group(required=True)
     source.add_argument('--config');source.add_argument('--run')
     spec.add_argument('--module','--plugin',dest='module',required=True);spec.add_argument('--role',default='self')
-    for name in ('init','check','module','plugin','status','config','bind','deliver','select','iteration-context','begin-session','activate-session','end-session'):
+    for name in ('init','check','module','plugin','status','config','bind','deliver','select','recommendation','method-reports','method-report-context','method-report-submit','reconcile-exchange','reconcile-evaluation','iteration-context','begin-session','activate-session','end-session'):
         q=sub.add_parser(name);q.add_argument('run')
         if name=='init':
             q.add_argument('--config');q.add_argument('--researchers',type=int);q.add_argument('--rounds',type=int)
@@ -292,6 +314,9 @@ def main():
         if name=='bind':q.add_argument('path')
         if name=='deliver':
             q.add_argument('kind');q.add_argument('manifest');q.add_argument('--module','--plugin',dest='module',required=True)
+        if name in ('method-report-context', 'method-report-submit'):q.add_argument('--session',required=True)
+        if name=='method-report-submit':q.add_argument('--manifest',required=True)
+        if name=='reconcile-evaluation':q.add_argument('--evaluation',required=True)
         if name=='select':q.add_argument('--candidate',required=True)
         if name=='iteration-context':q.add_argument('--actor')
         if name.endswith('session'):q.add_argument('--actor',required=True)

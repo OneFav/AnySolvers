@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import tempfile
@@ -13,7 +14,9 @@ import tempfile
 import jsonschema
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
+# Project paths are anchored here, independent of the caller working directory.
+ROOT = Path(os.environ.get("ANYSOLVERS_PROJECT_ROOT", str(ENGINE_ROOT))).expanduser().resolve()
 ID = re.compile(r'^[a-z][a-z0-9-]{0,63}$')
 
 
@@ -69,12 +72,48 @@ def sha(path):
 
 def write_json(path, obj):
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     data = json.dumps(obj, ensure_ascii=False, indent=2, allow_nan=False) + '\n'
-    with tempfile.NamedTemporaryFile('w', dir=path.parent, delete=False) as f:
-        f.write(data)
-        temp = Path(f.name)
-    temp.replace(path)
+    atomic_write(path, data.encode('utf-8'))
+
+
+def sync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def atomic_write(path, data):
+    """Durable replacement: file contents before rename, directory before acknowledgement."""
+    path = Path(path)
+    missing = []
+    parent = path.parent
+    while not parent.exists():
+        missing.append(parent)
+        parent = parent.parent
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for directory in reversed(missing):
+        sync_directory(directory.parent)
+    temp = None
+    try:
+        with tempfile.NamedTemporaryFile('wb', dir=path.parent, delete=False) as stream:
+            temp = Path(stream.name)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temp.replace(path)
+        sync_directory(path.parent)
+    finally:
+        if temp is not None:
+            temp.unlink(missing_ok=True)
+
+
+def logical_path(path):
+    path = Path(path).absolute()
+    if path.is_relative_to(ENGINE_ROOT) and path.relative_to(ENGINE_ROOT).parts[0] in ('tools', 'modules'):
+        return str(path.relative_to(ENGINE_ROOT))
+    return str(path.relative_to(ROOT))
 
 
 def contained(root, relative):
@@ -112,7 +151,7 @@ def validate_schema(schema, obj):
 
 
 def validate(kind, obj, cfg=None):
-    core = read_json(ROOT / 'tools/schemas.json')
+    core = read_json(ENGINE_ROOT / 'tools/schemas.json')
     if kind in core['$defs']:
         schema = {'$ref':'#/$defs/'+kind, '$defs':core['$defs']}
     elif cfg is not None:
@@ -125,7 +164,7 @@ def validate(kind, obj, cfg=None):
         # Legacy unit helpers have no effective cfg. Resolve the selected template
         # packages, never choose an arbitrary sibling or an inactive spare.
         from tools.module_runtime import resolve_bindings, output_schema
-        entries = resolve_bindings(read_yaml(ROOT/'configs/smoke.yaml')['modules'])
+        entries = resolve_bindings(read_yaml(ENGINE_ROOT/'configs/smoke.yaml')['modules'])
         owners = [entry for entry in entries.values() if kind in entry['contracts']]
         if len(owners) != 1:
             raise ValueError('expected one module-owned contract: ' + kind)
@@ -137,12 +176,14 @@ def workspace_file(relative):
     parts = Path(relative).parts
     if parts and parts[0].casefold() == 'assets':
         raise ValueError('archive paths cannot be used as working inputs')
+    if parts and parts[0] in ('tools', 'modules'):
+        return contained(ENGINE_ROOT, relative)
     return contained(ROOT, relative)
 
 
 def file_ref(path):
     """Record a working file's version without making an archival copy."""
-    relative = str(Path(path).relative_to(ROOT))
+    relative = logical_path(path)
     return {'path': relative, 'sha': sha(workspace_file(relative))}
 
 
@@ -159,7 +200,7 @@ def read_pinned(entry, label='working file'):
 def read_plugin(path):
     """Compatibility name; all new bindings load full module packages."""
     from tools.module_runtime import read_module
-    return read_module(str(Path(path).relative_to(ROOT)))
+    return read_module(logical_path(path))
 
 
 def benchmark_environment(run, config, state, dataset):
@@ -183,6 +224,8 @@ def benchmark_environment(run, config, state, dataset):
 def event(run_dir, kind, **fields):
     with (Path(run_dir) / 'events.jsonl').open('a') as f:
         f.write(json.dumps({'at': utc(), 'kind': kind, **fields}, ensure_ascii=False, allow_nan=False) + '\n')
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def save_state(run_dir, state):
@@ -331,6 +374,14 @@ def load_run(run_id, read_only=False, replacing_slot=None):
         if sha(contained(run, summary['details_file'])) != seal['results_sha']:
             raise ValueError('sealed evaluation records changed: ' + eid)
     return run, cfg, state
+
+
+def implementation_digest(cfg):
+    files = {ref['path']: ref['sha'] for ref in cfg['_pins'].values()}
+    for entry in cfg['modules'].values():
+        files[entry['path']] = entry['sha']
+        files.update({ref['path']: ref['sha'] for ref in entry['resources'].values()})
+    return digest(files)
 
 
 def working_file_changes(cfg):

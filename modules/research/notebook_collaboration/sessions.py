@@ -74,7 +74,7 @@ def _open(run, cfg, state, now):
             raise ValueError('evaluation requires reconciliation before new research')
 
 
-def begin_session(run, cfg, state, actor, role, idea_id=None, iteration_id=None, now=None):
+def prepare_session(run, cfg, state, actor, role, idea_id=None, iteration_id=None, now=None):
     now = now or c.utc()
     c.identifier(actor)
     _open(run, cfg, state, now)
@@ -124,10 +124,18 @@ def begin_session(run, cfg, state, actor, role, idea_id=None, iteration_id=None,
         'config_sha': state['config_sha'], 'idea_id': idea_id,
         'iteration_id': iteration_id, 'parent_candidate': parent,
     }
+    return session
+
+
+def commit_session(run, state, session):
     state['sessions'].append(session)
     c.save_state(run, state)
     c.event(run, 'begin-session', **session)
     return session
+
+
+def begin_session(run, cfg, state, actor, role, idea_id=None, iteration_id=None, now=None):
+    return commit_session(run, state, prepare_session(run, cfg, state, actor, role, idea_id, iteration_id, now))
 
 
 def activate_session(run, cfg, state, actor, native_id, now=None):

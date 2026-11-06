@@ -7,6 +7,7 @@ import copy
 import importlib.util
 import math
 import os
+import jsonschema
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -177,6 +178,12 @@ def load_environment(root, data, files):
         if relative not in files or c.sha(c.contained(root, relative)) != files[relative]:
             raise ValueError('benchmark/source file missing or changed: ' + relative)
     benchmark = _benchmark(root, data)
+    try:
+        fixtures = c.read_json(c.contained(root, benchmark['tests_file']))
+        _schema('fixtures', fixtures)
+    except (ValueError, jsonschema.ValidationError) as exc:
+        raise ValueError(f"benchmark.tests_file '{benchmark['tests_file']}' must contain a JSON fixtures object "
+                         f"matching schemas/fixtures.json, not executable Python: {exc}") from exc
     module = _load(c.contained(root, benchmark['evaluator_file']))
     names = ['validate_input'] + (['score'] if benchmark['protocol']['kind'] == 'function'
                                  else ['reset', 'step', 'score_episode'])
@@ -192,7 +199,7 @@ def load_environment(root, data, files):
         protocol=benchmark['protocol'], benchmark=benchmark, signature=signature,
         baseline_path=c.contained(root, benchmark['baseline_file']),
         baseline_sha=files[benchmark['baseline_file']],
-        fixtures=c.read_json(c.contained(root, benchmark['tests_file'])))
+        fixtures=fixtures)
 
 
 def _registered_environment(run, record, records):

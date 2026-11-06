@@ -55,15 +55,26 @@ def _best(run, cfg, state):
                                       s['evaluation_id'])) if eligible else None
 
 
+def recommendation(run, cfg, state):
+    """Read-only winner using the same deterministic rule as select."""
+    best = _best(run, cfg, state)
+    return None if best is None else {key: best[key] for key in
+        ('candidate_id', 'source_sha', 'dataset_id', 'evaluation_id', 'score')}
+
+
 def select(run, cfg, state, candidate):
     safe_boundary(state)
     if any(s['status'] not in ('completed', 'failed') for s in _summaries(run, state)):
         raise ValueError('end active measurements first')
+    from tools.module_runtime import invoke
+    if cfg.get('modules', {}).get('selections', {}).get('capabilities', {}).get('method_reports'):
+        invoke(cfg, 'selections', 'require_reports', run, cfg, state)
     best = _best(run, cfg, state)
     if best is None:
         raise ValueError('no complete valid anchor evaluation')
     if best['candidate_id'] != candidate:
-        raise ValueError('candidate is not the best eligible anchor result')
+        raise ValueError(f"candidate is not the best eligible anchor result; expected '{best['candidate_id']}' "
+                         f"from evaluation '{best['evaluation_id']}'. Ties use source_sha then evaluation_id.")
     state['selection'] = {
         'candidate_id': candidate, 'source_sha': best['source_sha'],
         'anchor_dataset_id': best['dataset_id'], 'evaluation_id': best['evaluation_id'],

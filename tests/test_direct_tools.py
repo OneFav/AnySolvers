@@ -190,7 +190,7 @@ class DirectToolsTests(unittest.TestCase):
         records = self.snapshot()[2]['extensions']['research_exchange']
         self.assertTrue(all(ref['path'].startswith('research/exchange/')
                             for ref in records.values()))
-        self.assertEqual(set(self.snapshot()[2]['extensions']), {'research_exchange'})
+        self.assertEqual(set(self.snapshot()[2]['extensions']), {'research_exchange', 'selection_reports'})
         self.assertEqual(resumed['context_policy'], 'fresh-native-session-with-notebook')
 
     def test_final_result_never_enters_researcher_tools_even_after_session_end(self):

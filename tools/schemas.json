@@ -826,6 +826,10 @@
             "sha"
           ],
           "additionalProperties": false
+        },
+        "implementation_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       },
       "required": [

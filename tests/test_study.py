@@ -21,6 +21,9 @@ class StudyTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix='anysolvers-study-', dir='/private/tmp')
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        engine_patch = patch.object(common, 'ENGINE_ROOT', self.root)
+        engine_patch.start()
+        self.addCleanup(engine_patch.stop)
         for name in ('configs', 'modules', 'tools'):
             shutil.copytree(PACKAGE_ROOT / name, self.root / name,
                             ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))

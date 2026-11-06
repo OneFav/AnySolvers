@@ -76,12 +76,16 @@ def effective(document, lock):
     from tools.module_runtime import entry_path
     for slot, binding in cfg['modules'].items():
         frozen = lock['modules'][slot]
-        if str(entry_path(binding['use']).relative_to(c.ROOT)) != frozen['path']:
+        if str(entry_path(binding['use']).relative_to(c.ENGINE_ROOT)) != frozen['path']:
             raise ValueError('module reference differs from frozen binding: ' + slot)
         if merge(frozen['defaults'], binding.get('params',{})) != frozen['params']:
             raise ValueError('module parameters differ from frozen binding: ' + slot)
     cfg.update({key: copy.deepcopy(lock[key])
                 for key in ('task', 'modules', '_pins', 'run_id', 'created_at')})
+    if 'implementation_sha' in lock:
+        cfg['implementation_sha'] = lock['implementation_sha']
+        if cfg['implementation_sha'] != c.implementation_digest(cfg):
+            raise ValueError('implementation identity differs from frozen bindings')
     c.validate('config', cfg)
     return cfg
 

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "candidate": {
+      "anyOf": [
+        {"type": "null"},
+        {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+          "title": {"type": "string", "minLength": 1, "maxLength": 40},
+          "method": {"type": "string", "minLength": 1, "maxLength": 280},
+          "limitations": {"type": "string", "minLength": 1, "maxLength": 80}
+        },
+        "required": ["candidate_id", "title", "method", "limitations"],
+        "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "required": ["candidate"],
+  "additionalProperties": false
+}

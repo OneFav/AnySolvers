@@ -1,9 +1,11 @@
 ---
-version: 3.0.0
+version: 4.0.0
 execution:
   mode: main
   delegates: {}
-defaults: {}
+defaults:
+  trace_retention: summary
+parameters: schemas/params.json
 capabilities:
   short_state_transactions: true
   trusted_feedback: true
@@ -21,12 +23,14 @@ contracts:
   evaluation: schemas/evaluation.json
 handlers:
   evaluate: measure.py
+  reconcile: measure.py
   details: measure.py
   preflight: measure.py
   evaluation_active: measure.py
   resource_contract: measure.py
 files:
 - sandbox.py
+- retention.py
 ---
 
 # 可信三槽评测
@@ -53,3 +57,11 @@ files:
 交互协议受 max_steps、每动作 action_wall_s、整例 wall_s 以及原单核/内存/CPU/输出上限约束；响应超时或非法动作无分数，未知清理或基础设施错误阻止继续测量。静态评分及交互可信 Python 回调使用主线程 POSIX 定时器控制，计入单案时限；三槽通过三个独立进程执行，不能用子线程替代。当前不支持不可中断的原生仿真引擎。环境运行消耗宿主资源，不包含在候选容器的内存/单核限制内，重型环境须另行配置执行器，不能将该限制宣称为全环境资源上限。
 
 每例详情可包含交互 trace（观测、动作、下一观测、终止标记）；默认仍只返回摘要，详情按需读取。研究员接口、轮数与预算管理不变；候选 manifest 中 solve(case) 的 case 在 episode 协议下表示本步 observation。
+
+## 轨迹留存和完成回执
+
+新批次默认 `modules.evaluation.params.trace_retention: summary`。可信评分器先获得完整 trace 并完成评分，之后才裁剪持久化结果：保留分数、全部 metrics、资源与清理信息、attempt/result 身份，逐步轨迹改存规范 JSON 哈希、字节数与记录数。失败最多保留最后三步、合计 4KiB 的片段；stdout/stderr 各保留至多 4KiB 的首尾内容（另加截断标记），附原长度与哈希。留存策略进入请求身份。
+
+需要完整轨迹时，在封存新批次之前将参数设为 `full`；诊断输出仍有界。summary 模式没有完整轨迹展开入口，不能为补日志自动重跑。旧封存结果不被改写。
+
+执行前持久化逐例 attempt，结果返回后持久化 result。整次结束先落 `completion.json`（固定配置身份、完整摘要与逐例日志哈希），再发布摘要和状态封印。进程若在最后提交期间中断，主会话使用 `tools/run.py reconcile-evaluation RUN --evaluation ID`：取得原评测租约、校验配置与原请求、完整 attempt/result 配对和已确认清理后只补状态。缺失/损坏回执、未完成 attempt、基础设施错误或未知清理继续阻断；接口不会重新求解或推测遗失成绩。原请求再次读取已封存结果时补齐 response。

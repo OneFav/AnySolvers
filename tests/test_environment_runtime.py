@@ -97,6 +97,9 @@ class RuntimeFixture:
         temporary = tempfile.TemporaryDirectory(prefix='anysolvers-runtime-integration-', dir='/private/tmp')
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        engine_patch = patch.object(c, 'ENGINE_ROOT', self.root)
+        engine_patch.start()
+        self.addCleanup(engine_patch.stop)
         for name in ('configs', 'modules', 'tools'):
             shutil.copytree(PACKAGE_ROOT / name, self.root / name,
                             ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
@@ -128,6 +131,8 @@ class RuntimeFixture:
         cfg = c.read_yaml(self.root / 'configs/smoke.yaml')
         cfg['task'] = task_relative
         cfg['final']['authorized'] = False
+        # These visibility assertions explicitly inspect every observation.
+        cfg['modules']['evaluation']['params'] = {'trace_retention': 'full'}
         self.write(self.root, 'configs/runtime-test.yaml', yaml.safe_dump(cfg))
         study.create(study_id, 'configs/runtime-test.yaml')
         initialization, manifest = study.load(study_id)

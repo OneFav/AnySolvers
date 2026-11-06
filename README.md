@@ -16,7 +16,7 @@ python3 -m venv .venv
 
 默认测试不调用研究模型，真实 Docker 测试需显式设置 `ANYSOLVERS_V2_DOCKER_TEST=1`。原生研究员由支持相应模型和 subagent 的 Codex 主会话启动。
 
-当前沙箱主要在 macOS + Docker 环境验证，依赖 POSIX 文件锁、定时器及 `/private/tmp`。评测使用代码与配置中固定的 Docker 镜像 ID；仓库尚未提供该镜像的分发地址或 Dockerfile。在其他机器开始真实评测前，需要先准备并核验对应执行环境；只安装 Python 依赖并不能获得完整沙箱。运行数据和虚拟环境默认不纳入 Git。
+当前沙箱主要在 macOS + Docker 环境验证，依赖 POSIX 文件锁、定时器和系统临时目录。评测使用代码与配置中固定的 Docker 镜像 ID；仓库尚未提供该镜像的分发地址或 Dockerfile。在其他机器开始真实评测前，需要先准备并核验对应执行环境；只安装 Python 依赖并不能获得完整沙箱。运行数据和虚拟环境默认不纳入 Git。
 
 ## 模块类别与具体方法
 
@@ -93,7 +93,7 @@ runs/STUDY/
 
 同一会话可多次评测；默认返回摘要，逐例详情按需读取。笔记、发现、复用和下一代算法想法由研究员直接登记，主会话不逐次转发。完整接口见 [COLLABORATION.md](docs/COLLABORATION.md)。
 
-新运行记录放在 `research/{candidates,evaluations,selections,exchange}`；exchange 保存请求、响应、笔记、发现和复用来源。公共提示词、Skills 和完整聊天不复制进每次运行。旧路径、上一轮验收记录及本次迁移兼容层不保留。
+新运行记录放在 `research/{candidates,evaluations,selections,exchange,ideas,reports,journal}`；exchange 保存请求、响应、笔记、发现和复用来源。公共提示词、Skills 和完整聊天不复制进每次运行。旧路径、上一轮验收记录及本次迁移兼容层不保留。
 
 ## 边界与检查
 
@@ -106,3 +106,11 @@ runs/STUDY/
 task 只产出 task.md / task.json；datasets 根据定义准备可执行评测包：benchmark.json、可信评分器或仿真适配器、基线、规则 fixtures，以及实例清单与真实数据来源。evaluation 仅装载并运行这套包。详见 [评测包接口](modules/datasets/stratified_holdout/MODULE.md)。
 
 支持静态 solve(case) 和交互 solve(observation) 两种模式。真实数据通过明确的原始文件与适配器导入，缺失数据不会自动换成合成数据。共享环境在 initialization/datasets 中只存一份，各数据划分引用它；编号批次新增 challenge 可以引用 @anchor。当前交互执行器用于轻量可信 Python 环境与固定策略评测，尚不包含训练调度或通用大型仿真后端。
+
+## 研究记录与独立项目
+
+每轮保存完整起点；主会话在会话结束后核对 checkpoint 指定的源码并封存方法报告，程序附加可信开发成绩。报告完成后才能续接该研究员或冻结终局候选，下一轮算法想法仍由研究员提出。命令见 [selections 契约](modules/selections/evidence_iteration/MODULE.md)。终局可先用 `tools/run.py recommendation RUN` 只读查看合格候选。
+
+新批次默认摘要留存交互轨迹，需完整轨迹时在封存前设置 `modules.evaluation.params.trace_retention: full`。固定 Docker、单例/整次限额与两个研究时钟不变。
+
+通过 `ANYSOLVERS_PROJECT_ROOT` 使用独立项目目录，新批次固定实现内容摘要；详见 [路径约定](docs/PATHS.md)。工具意图和完成回执支持无执行的补账，未知求解继续阻塞；详见 [恢复说明](docs/RECOVERY.md)。

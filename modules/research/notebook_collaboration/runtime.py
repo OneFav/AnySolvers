@@ -6,6 +6,7 @@ import uuid
 from tools import common as c
 from tools.module_runtime import invoke, output_schema
 from modules.research.notebook_collaboration import sessions as base
+from modules.research.notebook_collaboration import journal
 
 
 def records(state):
@@ -34,6 +35,7 @@ def audit(run, cfg, state):
         elif key.endswith('-response'):
             raise ValueError('reserved response ID used by a non-response record')
     for session in state['sessions']:
+        verify_start(run, state, session)
         expected = {}
         for key, request in result.items():
             if request['kind'] == 'request' and request['session_id'] == session['session_id']:
@@ -42,6 +44,9 @@ def audit(run, cfg, state):
                                  'finished_at': response['at'] if response else None}
         if session.get('evaluation_waits', {}) != expected:
             raise ValueError('evaluation timing differs from sealed request/response records')
+    journal.audit(run, cfg, state)
+    if state.get('extensions', {}).get('selection_reports'):
+        invoke(cfg, 'selections', 'report_audit', run, cfg, state)
     return result
 
 
@@ -117,12 +122,58 @@ def _put(run, cfg, state, kind, rid, sid, payload):
         base.research_time(cfg, session, at)
     data = dict(schema_version=1, run_id=cfg['run_id'], record_id=rid, kind=kind,
                 session_id=sid, at=at, payload=payload)
+    journal.prepare(run, cfg, data)
     c.write_json(path, data)
     state.setdefault('extensions', {}).setdefault('research_exchange', {})[rid] = {
         'path': str(path.relative_to(run)), 'sha': c.sha(path), 'kind': kind}
     c.save_state(run, state)
     c.event(run, 'exchange-' + kind, record_id=rid, session_id=sid, sha=c.sha(path))
     return data
+
+
+def starting_content(state, session):
+    if session.get('idea_id'):
+        found = [idea for ref in state['deliveries']['ideas'].values()
+                 for idea in ref['manifest']['ideas'] if idea['idea_id'] == session['idea_id']]
+        if len(found) != 1:
+            raise ValueError('round starting idea source is missing or ambiguous')
+        return 'initial', session['idea_id'], found[0]
+    return 'iteration', session['iteration_id'], state['deliveries']['iteration'][session['iteration_id']]['manifest']
+
+
+def seal_start(run, state, session):
+    kind, source_id, content = starting_content(state, session)
+    snapshot = dict(schema_version=1, session_id=session['session_id'], actor=session['actor'],
+                    generation=session['generation'], kind=kind, idea_id=source_id,
+                    content=content, content_sha=c.digest(content))
+    relative = 'research/ideas/' + session['session_id'] + '.json'
+    path = c.contained(run, relative)
+    if path.exists() and c.read_json(path) != snapshot:
+        raise ValueError('unregistered round starting idea differs; reconciliation required')
+    c.write_json(path, snapshot)
+    session['starting_idea'] = dict(path=relative, sha=c.sha(path), **snapshot)
+
+
+def verify_start(run, state, session):
+    start = session.get('starting_idea')
+    if not start:
+        raise ValueError('round starting idea is missing')
+    kind, source_id, content = starting_content(state, session)
+    expected = dict(schema_version=1, session_id=session['session_id'], actor=session['actor'],
+                    generation=session['generation'], kind=kind, idea_id=source_id,
+                    content=content, content_sha=c.digest(content))
+    path = c.contained(run, start['path'])
+    if (start['path'] != 'research/ideas/' + session['session_id'] + '.json'
+            or c.sha(path) != start['sha'] or c.read_json(path) != expected
+            or {k: v for k, v in start.items() if k not in ('path', 'sha')} != expected):
+        raise ValueError('round starting idea binding changed')
+
+
+def reconcile(run, cfg, state):
+    """Coordinator-only metadata recovery. Never starts an evaluation or native agent."""
+    recovered = journal.reconcile(run, cfg, state)
+    audit(run, cfg, state)
+    return dict(recovered_records=recovered, execution_started=False)
 
 
 def _development(run, cfg, state, eid):
@@ -158,10 +209,13 @@ def begin_session(run, cfg, state, actor, role, idea_id=None, iteration_id=None,
             raise ValueError('fresh-context continuation requires a previous notebook')
         if note['payload']['next_iteration_id'] != iteration_id:
             raise ValueError('continuation must use the researcher notebook iteration')
-    session = base.begin_session(run, cfg, state, actor, role, idea_id, iteration_id, now)
+    if previous:
+        invoke(cfg, 'selections', 'require_reports', run, cfg, state, previous[-1]['session_id'])
+    session = base.prepare_session(run, cfg, state, actor, role, idea_id, iteration_id, now)
     session['resume_notebook'] = None if note is None else records(state)[note['record_id']]
     session['context_policy'] = 'fresh-native-session-with-notebook'
-    c.save_state(run, state)
+    seal_start(run, state, session)
+    base.commit_session(run, state, session)
     c.event(run, 'exchange-session-inputs', session_id=session['session_id'], notebook=session['resume_notebook'])
     return session
 

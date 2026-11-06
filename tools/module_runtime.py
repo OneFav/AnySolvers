@@ -10,10 +10,10 @@ from tools import common as c
 def entry_path(use):
     path = c.workspace_file(use)
     path = path / 'MODULE.md' if path.is_dir() else path
-    parts = path.relative_to(c.ROOT).parts
+    parts = path.relative_to(c.ENGINE_ROOT).parts
     if len(parts) != 4 or parts[0] != 'modules' or parts[-1] != 'MODULE.md':
         raise ValueError('active module must be modules/<kind>/<method>/MODULE.md; spare_modules is inactive')
-    return c.workspace_file(str(path.relative_to(c.ROOT)))
+    return c.workspace_file(str(path.relative_to(c.ENGINE_ROOT)))
 
 
 def dependency(entry, relative):
@@ -33,7 +33,7 @@ def dependency(entry, relative):
     path = current.resolve()
     if not path.is_relative_to(main.parent):
         raise ValueError('module dependency escapes its package')
-    return c.workspace_file(str(path.relative_to(c.ROOT)))
+    return c.workspace_file(str(path.relative_to(c.ENGINE_ROOT)))
 
 
 def read_module(use, params=None):
@@ -52,7 +52,7 @@ def read_module(use, params=None):
         relatives.append(meta['parameters'])
     for relative in relatives:
         file = dependency(entry, relative)
-        entry['resources'][str(file.relative_to(c.ROOT))] = c.file_ref(file)
+        entry['resources'][str(file.relative_to(c.ENGINE_ROOT))] = c.file_ref(file)
     entry['params'] = merge(meta['defaults'], params or {})
     if meta.get('parameters'):
         c.validate_schema(c.read_json(dependency(entry, meta['parameters'])), entry['params'])
@@ -81,7 +81,7 @@ def output_schema(entry, kind):
     if kind not in entry['contracts']:
         raise ValueError('module does not declare output contract: ' + kind)
     path = dependency(entry, entry['contracts'][kind])
-    ref = entry['resources'][str(path.relative_to(c.ROOT))]
+    ref = entry['resources'][str(path.relative_to(c.ENGINE_ROOT))]
     return c.parse_json(c.read_pinned(ref, 'module contract').decode())
 
 
@@ -94,8 +94,8 @@ def compatible(old, new):
     for kind in old['contracts']:
         if kind not in new['contracts']:
             raise ValueError('incompatible output contract: ' + kind)
-        a = str(dependency(old, old['contracts'][kind]).relative_to(c.ROOT))
-        b = str(dependency(new, new['contracts'][kind]).relative_to(c.ROOT))
+        a = str(dependency(old, old['contracts'][kind]).relative_to(c.ENGINE_ROOT))
+        b = str(dependency(new, new['contracts'][kind]).relative_to(c.ENGINE_ROOT))
         if old['resources'][a]['sha'] != new['resources'][b]['sha']:
             raise ValueError('incompatible output contract version: ' + kind)
 

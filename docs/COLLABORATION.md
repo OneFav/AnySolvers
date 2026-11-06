@@ -45,3 +45,5 @@ notebook 是私有交接单，iteration 是具体下一代算法想法；二者�
 ## 验证范围
 
 单元测试检查排队、预算竞争、重复请求、数据范围与来源等；轻量真实运行检查模型是否实际自己调用工具并得到结果。背包例子属于机制验收，不证明新算法、新颖性或共享发现的因果效果。正式研究需要另行授权。
+
+每轮起点在 `research/ideas/<session>.json` 绑定完整来源与内容哈希；会话结束后主会话按 selections 契约核对最后 checkpoint 指定的方法，封存 `research/reports/<session>.json`。这两个记录不替代研究员 notebook/iteration。方法报告不对其他研究员自动公开，最终测试不进入报告。交换意图恢复和评测完成回执补账见 [RECOVERY.md](RECOVERY.md)。

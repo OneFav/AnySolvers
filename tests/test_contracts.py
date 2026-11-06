@@ -105,6 +105,9 @@ class ContractTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="anysolvers-v2-contract-", dir="/private/tmp")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        engine_patch = patch.object(common, 'ENGINE_ROOT', self.root)
+        engine_patch.start()
+        self.addCleanup(engine_patch.stop)
         for name in ("configs", "modules", "spare_modules", "tools"):
             shutil.copytree(PACKAGE_ROOT / name, self.root / name,
                             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
@@ -142,6 +145,17 @@ class ContractTests(unittest.TestCase):
             with common.mutation(directory):
                 result = runtime.activate_session(directory, cfg, state, kwargs['actor'],
                     fixture_native or 'fixture-' + result['session_id'], now=result['started_at'])
+        if name == 'end-session' and getattr(self, 'auto_method_reports', True):
+            # Deterministic fixture prose, not a model-authored method description.
+            from modules.selections.evidence_iteration import reports
+            directory, cfg, state = self.snapshot()
+            with common.mutation(directory):
+                context = reports.report_context(directory, cfg, state, result['session_id'])
+                candidate = context['facts']['candidate']
+                prose = None if candidate is None else dict(candidate_id=candidate['candidate_id'],
+                    title='Fixture method', method='Deterministic contract-test placeholder.',
+                    limitations='No research conclusion is claimed.')
+                reports.report_submit(directory, cfg, state, result['session_id'], {'candidate': prose})
         return result
 
     def snapshot(self):

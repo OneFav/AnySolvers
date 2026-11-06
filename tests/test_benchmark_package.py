@@ -89,6 +89,13 @@ class BenchmarkPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'changed'):
             p.load_environment(self.root,self.data,self.files)
 
+    def test_python_tests_file_is_rejected_with_fixture_guidance_before_import(self):
+        from unittest.mock import patch
+        self.write('datasets/environment/fixtures.json', 'raise RuntimeError("not JSON")\n')
+        with patch.object(p, '_load', side_effect=AssertionError('must reject before importing')):
+            with self.assertRaisesRegex(ValueError, 'JSON fixtures object.*not executable Python'):
+                self.deliver()
+
     def test_episode_fixtures_exercise_trusted_dynamics(self):
         self.make(episode=True)
         env = self.deliver()

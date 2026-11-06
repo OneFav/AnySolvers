@@ -28,7 +28,9 @@ DEFAULT_LIMITS = {"wall_s": 10, "cpu_s": 2, "memory_mb": 128, "pids": 32,
                   "output_bytes": 65536, "tmp_mb": 16}
 LABEL = "anysolvers.v2"
 MAX_PARALLEL_EVALUATIONS = 3
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+from tools import common
+
+PROJECT_ROOT = common.ROOT
 _LOCK_MARKER = b"anysolvers.v2 sandbox lock\n"
 _BRIDGE = '''import contextlib, json, runpy, sys
 case = json.load(sys.stdin)
@@ -103,7 +105,7 @@ def preflight(image):
 
 def _lock_file(path):
     path = Path(path).absolute()
-    allowed_roots = (PROJECT_ROOT, Path(tempfile.gettempdir()).resolve(), Path("/private/tmp"))
+    allowed_roots = (common.ROOT, Path(tempfile.gettempdir()).resolve())
     if not any(path.resolve().is_relative_to(root) for root in allowed_roots):
         raise ValueError("Lock must be in AnySolvers-v2 or a temporary test directory")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -535,9 +537,7 @@ def _execute_episode(source, case, image, limits, environment, max_steps, action
             raise _AdmissionClosed("run_wall_budget")
         details["preflight"] = preflight(image)
         _check_capacity(details["preflight"], parallel_slots, limits)
-        if not Path("/private/tmp").is_dir():
-            raise InfrastructureError("This protocol requires /private/tmp staging")
-        transient = Path(tempfile.mkdtemp(prefix="anysolvers-v2-", dir="/private/tmp"))
+        transient = Path(tempfile.mkdtemp(prefix="anysolvers-v2-"))
         transient.chmod(0o755)
         code, wrapper = transient / "solver.py", transient / "entrypoint.py"
         for path, contents in ((code, source), (wrapper, _EPISODE_BRIDGE)):
@@ -651,7 +651,7 @@ def execute(source: str, case: dict, image: str, limits: dict, scorer, lock_path
     """Run one case; scorer(solution, case) returns score and optional metrics.
 
     All calls must share the same v2-only lock_path. Only two ephemeral code files
-    are staged in /private/tmp; cases use stdin and no evidence files are written.
+    are staged in the system temporary directory; cases use stdin and no evidence files are written.
     Scorers are trusted host Python code bounded by the case deadline on the
     main thread using POSIX timers; non-interruptible native callbacks are not
     supported. A scorer timeout is an infrastructure failure. Other scorer
@@ -687,9 +687,7 @@ def _execute(source, case, image, limits, scorer, payload, deadline=None, parall
             raise _AdmissionClosed("run_wall_budget")
         details["preflight"] = preflight(image)
         _check_capacity(details["preflight"], parallel_slots, limits)
-        if not Path("/private/tmp").is_dir():
-            raise InfrastructureError("This protocol requires /private/tmp staging")
-        transient = Path(tempfile.mkdtemp(prefix="anysolvers-v2-", dir="/private/tmp"))
+        transient = Path(tempfile.mkdtemp(prefix="anysolvers-v2-"))
         transient.chmod(0o755)
         code, wrapper = transient / "solver.py", transient / "entrypoint.py"
         for path, contents in ((code, source), (wrapper, _BRIDGE)):

@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "trace_retention": {
+      "enum": [
+        "summary",
+        "full"
+      ]
+    }
+  },
+  "required": [
+    "trace_retention"
+  ],
+  "additionalProperties": false
+}

@@ -19,6 +19,7 @@ contracts:
   report: schemas/report.json
 handlers:
   select: policy.py
+  recommendation: policy.py
   gate: policy.py
   validate_delivery: validate.py
 files: []
@@ -51,3 +52,5 @@ capabilities: {}
 
 
 执行与授权、路径、冻结交付、原生参数及预算边界遵守主 [AGENTS.md](../../../AGENTS.md)；具体交付或程序调用以上述本模块规则为准。
+
+`tools/run.py recommendation RUN` 只读返回按正式 select 相同规则得到的候选、源码哈希、开发评测 ID 和分数；没有合格候选时返回 null。它不冻结候选、不授予最终评测权限，select 时仍重新核验。若 selections 启用每轮方法报告，终局冻结前必须完成所有已结束会话的报告。

@@ -1,5 +1,5 @@
 ---
-version: 2.0.0
+version: 3.0.0
 execution:
   mode: main
   delegates:
@@ -35,10 +35,12 @@ handlers:
   exchange: runtime.py
   admit: runtime.py
   audit: runtime.py
+  reconcile: runtime.py
 files:
 - RESEARCHER.md
 - sessions.py
 - runtime.py
+- journal.py
 ---
 
 # 笔记续接与共享发现协作
@@ -54,3 +56,11 @@ files:
 7. 所有会话与请求结束后 audit/check，主会话交 final 冻结与测量，再生成报告和图。最终反馈不进入研究。
 
 runtime.py 负责会话准入与不可变记录；sessions.py 是共用生命周期校验；client.py 是研究员的固定工具入口。它们都不调用模型，也不含另一套后台 loop。CLI 会话范围校验不等于宿主文件隔离。
+
+## 起点、报告与恢复
+
+begin-session 将当轮初始 idea 或研究员 iteration 的完整正文、来源、actor、generation 和内容哈希写入 `research/ideas/<session>.json`，再提交会话状态。新会话的 context.session.starting_idea 返回该绑定；审计检查它仍与封存来源一致。后续路线变化写入 notebook，不修改起点。
+
+end-session 后，主会话按 selections 的 method-report-context / method-report-submit 契约核对源码并封存该轮方法报告，然后续接本人下一轮；最后一轮同样要报告。下一轮算法想法仍由研究员写 iteration。
+
+每条 exchange 记录在提交前先写持久化意图，再写结果文件和状态；未提交意图阻止新工作。主会话可用 `tools/run.py reconcile-exchange RUN` 发布已验证的原始元数据，不执行候选、不启动原生进程、不重置预算。评测回执补账见 evaluation 契约及 [恢复说明](../../../docs/RECOVERY.md)。

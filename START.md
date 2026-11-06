@@ -9,7 +9,7 @@
 5. 主会话先检查 Docker 与资源；可用 `tools/measure.py --run STUDY/001 --candidate baseline --dataset anchor --evaluation baseline-dev` 测基线。它是协调者入口，研究员不用它。
 6. `tools/run.py begin-session STUDY/001 --actor r1 --module research --role researcher --idea IDEA` 返回准确模型与强度。主会话按返回参数真实 spawn 新上下文，随后立即 `tools/run.py activate-session STUDY/001 --actor r1 --native-id ACTUAL_ID`。交付 RUN_ID、session_id、idea/iteration、授权材料、RESEARCHER.md 和停止边界。登记到实际启动的等待不计时。
 7. 研究员直接使用 tools/research.py 完成所有开发实验与记忆/分享，不需要主会话转发。在同一原生会话内可多次修改代码并评测。context.research_time 显示扣除评测前置检查、排队和执行后的余额；40 分钟用完后只允许收尾，不杀进程。结束前保存 iteration（有后续会话时）及 checkpoint，并确保请求全部回应。
-8. 主会话核对原生会话已结束再 end-session。若该 actor 还有预算，通过其 notebook 指向的 iteration 启动新上下文；不同 actor 可独立推进，无整组屏障。
+8. 主会话核对原生会话已结束再 end-session，按 selections 的方法报告接口核对源码并封存该轮报告（最后一轮也需要）。若该 actor 还有预算，通过其 notebook 指向的 iteration 启动新上下文；不同 actor 可独立推进，无整组屏障。
 9. 所有会话与测量结束后 audit、check，再由 final 模块选定并冻结候选。仅在最终测试已授权时评测基线及固定候选；独立检查原始解、合法率、失败和成本，保存报告和图。不要将 mock 单测当作模型/沙箱验收。
 
 所有命令前加 `.venv/bin/python -B`。研究员直接工具的完整参数见 `tools/research.py --help` 和 modules/research/notebook_collaboration/RESEARCHER.md。工具进程运行中只等待同一进程；断开或异常后先读 result 和原始记录，禁止改 ID 重试未决求解。

@@ -13,7 +13,7 @@ from pathlib import Path
 import time
 
 from tools import common
-from modules.evaluation.queued_sandbox import sandbox
+from modules.evaluation.queued_sandbox import sandbox, retention
 from tools.module_runtime import invoke
 
 # Preflight (20s), final inspect (10s), attach shutdown (5s), cleanup (30s).
@@ -93,7 +93,7 @@ def _inputs(run, config, state, candidate_id, dataset_id):
     request = {"candidate_id": candidate_id, "candidate": candidate, "source_sha": source_sha,
                "dataset_id": dataset_id, "dataset": dataset,
                "compute": config["compute"], "task": config["task"],
-               "benchmark_signature": task.signature}
+               "benchmark_signature": task.signature, "trace_retention": retention.policy(config)}
     return source.decode(), source_sha, manifest, cases, task, request
 
 
@@ -263,10 +263,12 @@ def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_
             kind = "final_evaluation" if manifest["purpose"] == "final" else "evaluation"
             directory = common.contained(run, common.output_relative(run_id, kind, evaluation_id))
             directory.mkdir(parents=True, exist_ok=False)
+            common.sync_directory(directory.parent)
             summary_file, journal = directory / "summary.json", directory / "results.jsonl"
             summary = {"evaluation_id": evaluation_id, "status": "running", "request_sha256": request_sha,
                        "candidate_id": candidate_id, "source_sha": source_sha, "dataset_id": dataset_id,
                        "dataset_purpose": manifest["purpose"], "probe": probe, "task_id": config["task"]["task_id"],
+                       "trace_retention": retention.policy(config),
                        "total_cases": len(cases), "completed_cases": 0, "valid_cases": 0, "all_valid": False,
                        "score": None, "infrastructure_error": False, "cleanup_confirmed": True,
                        "wall_s": 0.0, "queue_wait_s": 0.0, "admission_queue_wait_s": time.monotonic() - queued_at,
@@ -322,6 +324,7 @@ def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_
                     result = {"valid": False, "score": None, "solution": None, "metrics": {},
                               "infrastructure_error": True, "cleanup_confirmed": False,
                               "wall_s": None, "queue_wait_s": None, "error": str(exc)[:1000]}
+                result = retention.retain(result, retention.policy(config))
                 _append(journal, {"type": "result", "case_id": case["case_id"], "at": common.utc(), "result": result})
                 summary["completed_cases"] += 1
                 for field in ("wall_s", "queue_wait_s"):
@@ -359,12 +362,65 @@ def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_
                 raise ValueError("configuration changed while measuring; reconcile before retry")
             summary["finished_at"] = common.utc()
             summary["results_sha"] = common.sha(journal)
+            receipt = dict(config_sha=common.digest(config), summary=summary)
+            common.write_json(directory / 'completion.json',
+                              dict(receipt=receipt, sha=common.digest(receipt)))
             common.write_json(summary_file, summary)
             state.setdefault("evaluation_hashes", {})[evaluation_id] = {
                 "summary_sha": common.sha(summary_file), "results_sha": summary["results_sha"]}
             common.save_state(run, state)
             common.event(run, "evaluation_finished", evaluation_id=evaluation_id, status=summary["status"])
         return summary
+
+
+def reconcile(run_id, evaluation_id):
+    """Publish an original terminal receipt after a lost state commit; never solve."""
+    common.identifier(evaluation_id)
+    run = common.run_path(run_id)
+    # Hold the same lease as execution, not just a racy process-status check.
+    with _request_lock(_evaluation_lock_path(run, evaluation_id)):
+        with common.mutation(run):
+            _, cfg, state = common.load_run(run_id)
+            if evaluation_id not in state['evaluations']:
+                raise ValueError('unknown evaluation; no original registered intent')
+            summary_file = common.contained(run, state['evaluations'][evaluation_id])
+            receipt_file = summary_file.parent / 'completion.json'
+            if not receipt_file.is_file():
+                raise ValueError('unknown execution: no terminal receipt; replay is forbidden')
+            saved = common.read_json(receipt_file)
+            receipt = saved['receipt']
+            if saved['sha'] != common.digest(receipt) or receipt['config_sha'] != common.digest(cfg):
+                raise ValueError('completion receipt changed or belongs to another implementation')
+            summary = receipt['summary']
+            current = common.read_json(summary_file)
+            for key in ('evaluation_id', 'request_sha256', 'candidate_id', 'source_sha',
+                        'dataset_id', 'dataset_purpose', 'probe', 'details_file', 'started_at'):
+                if summary[key] != current[key]:
+                    raise ValueError('completion receipt differs from original evaluation intent')
+            if (summary['evaluation_id'] != evaluation_id
+                    or summary['status'] not in ('completed', 'failed') or not summary['finished_at']
+                    or summary['infrastructure_error'] or not summary['cleanup_confirmed']):
+                raise ValueError('unknown cleanup or infrastructure error requires manual reconciliation')
+            journal = common.contained(run, summary['details_file'])
+            if common.sha(journal) != summary['results_sha']:
+                raise ValueError('completion receipt journal changed')
+            records = [common.parse_json(line) for line in journal.read_text().splitlines()]
+            if len(records) != 2 * summary['completed_cases']:
+                raise ValueError('unmatched evaluation attempt; replay is forbidden')
+            for attempt, result in zip(records[::2], records[1::2]):
+                if (attempt['type'] != 'attempt' or result['type'] != 'result'
+                        or attempt['case_id'] != result['case_id']
+                        or result['result']['infrastructure_error']
+                        or not result['result']['cleanup_confirmed']):
+                    raise ValueError('unsettled evaluation attempt; replay is forbidden')
+            cached = evaluation_id in state.get('evaluation_hashes', {})
+            if cached and current != summary:
+                raise ValueError('sealed evaluation differs from completion receipt')
+            common.write_json(summary_file, summary)
+            state.setdefault('evaluation_hashes', {})[evaluation_id] = dict(
+                summary_sha=common.sha(summary_file), results_sha=summary['results_sha'])
+            common.save_state(run, state)
+            return dict(evaluation_id=evaluation_id, reconciled=True, cached=cached, execution_started=False)
 
 
 
