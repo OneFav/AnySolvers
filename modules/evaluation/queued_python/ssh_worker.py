@@ -86,7 +86,7 @@ def run_job(job):
                                            allow_nan=False).encode()
                     record(dict(type='attempt', case_id=row['case_id'], input_sha=hashlib.sha256(canonical).hexdigest(),
                                 source_sha=spec['source'], at=now()))
-                    result = runner.run_case(source, case, spec['limits'], evaluator, spec['protocol'])
+                    result = runner.run_case(source, case, spec['limits'], evaluator, spec['protocol'], job_dir=job)
                     record(dict(type='result', case_id=row['case_id'], result=retain(result, spec['mode']), at=now()))
                     if result['infrastructure_error'] or not result['cleanup_confirmed']:
                         receipt.update(infrastructure_error=True, error=result.get('error', 'execution failed'))

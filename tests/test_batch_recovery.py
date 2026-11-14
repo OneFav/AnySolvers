@@ -22,7 +22,11 @@ class RecoveryTests(RuntimeFixture, unittest.TestCase):
         document = c.read_yaml(directory/'run.yaml')
         document['budgets']['session_wall_s'] = 5000
         (directory/'run.yaml').write_text(yaml.safe_dump(document))
-        self.assertEqual(run.init(rid.split('/')[0])['run_id'], rid)
+        before = (directory/'state.json').read_bytes()
+        with self.assertRaisesRegex(ValueError, 'configuration changed|configuration.*mismatch'):
+            run.init(rid.split('/')[0])
+        self.assertEqual((directory/'state.json').read_bytes(), before)
+        self.assertTrue(run.resume(rid)['resumed'])
         self.assertFalse(directory.with_name('002').exists())
         self.assertEqual(c.load_run(rid)[1]['created_at'], cfg['created_at'])
         session = command('resume-session', native_id='next', stopped_at=old['activated_at'])

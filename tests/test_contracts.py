@@ -250,7 +250,7 @@ class ContractTests(unittest.TestCase):
         (self.root / config["modules"]["datasets"]["path"]).write_text("unbound replacement", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "module file changed"):
             self.command("plugin", slot="datasets")
-        with self.assertRaisesRegex(ValueError, "frontmatter"):
+        with self.assertRaisesRegex(ValueError, "module file changed"):
             run.init(self.run_id, "configs/smoke.yaml")
 
     def test_duplicate_json_and_yaml_keys_are_rejected(self):

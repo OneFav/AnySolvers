@@ -12,3 +12,4 @@ htmlcov/
 # Local studies, candidates, measurements and lock files are not framework code.
 /runs/*
 !/runs/README.md
+/runtime/

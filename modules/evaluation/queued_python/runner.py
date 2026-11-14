@@ -232,8 +232,8 @@ class _EpisodeChannel:
 
 
 @contextmanager
-def _candidate(source, bridge, cpu_s):
-    with tempfile.TemporaryDirectory(prefix="anysolvers-case-") as directory:
+def _candidate(source, bridge, cpu_s, job_dir):
+    with tempfile.TemporaryDirectory(prefix="anysolvers-case-", dir=job_dir) as directory:
         path = Path(directory) / "solver.py"
         path.write_text(source, encoding="utf-8")
         process = subprocess.Popen(
@@ -330,7 +330,7 @@ def _episode(process, case, environment, protocol, deadline, limit, result, stre
         channel.close()
 
 
-def run_case(source, case, limits, environment, protocol, admission_deadline=None):
+def run_case(source, case, limits, environment, protocol, admission_deadline=None, *, job_dir=None):
     _validate(limits)
     if protocol["kind"] == "episode":
         if type(protocol["max_steps"]) is not int or protocol["max_steps"] < 1:
@@ -349,7 +349,7 @@ def run_case(source, case, limits, environment, protocol, admission_deadline=Non
     streams = {}
     episode = protocol["kind"] == "episode"
     try:
-        with _candidate(source, _EPISODE_BRIDGE if episode else _BRIDGE, limits["cpu_s"]) as process:
+        with _candidate(source, _EPISODE_BRIDGE if episode else _BRIDGE, limits["cpu_s"], job_dir) as process:
             try:
                 if episode:
                     _episode(process, case, environment, protocol, deadline, limits["output_bytes"], result, streams)

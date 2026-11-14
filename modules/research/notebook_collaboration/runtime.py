@@ -387,8 +387,8 @@ def process(run_id, request_id, session_id=None):
     """The researcher calls this in its own tool process; duplicate calls cannot replay."""
     c.identifier(request_id)
     run = c.run_path(run_id)
-    locks = run/'research/.requests'
-    locks.mkdir(exist_ok=True)
+    locks = c.job_runtime(run) / 'requests'
+    locks.mkdir(parents=True, exist_ok=True)
     with (locks/(request_id+'.lock')).open('a+') as lease:
         fcntl.flock(lease, fcntl.LOCK_EX)
         return _process(run_id, request_id, session_id)

@@ -143,7 +143,7 @@ class InheritanceTests(unittest.TestCase):
         self.assertEqual(document['final'], {'authorized': False})
         self.assertNotIn('task', document)
 
-    def test_base_version_checks_original_bytes_and_rejects_edit_or_deletion(self):
+    def test_batches_keep_their_original_base_after_edit_or_deletion(self):
         base_path = self.root / 'configs/smoke.yaml'
         original = base_path.read_bytes() + b'\n# Preserve this exact source revision.\n'
         base_path.write_bytes(original)
@@ -155,18 +155,23 @@ class InheritanceTests(unittest.TestCase):
         changed = common.read_yaml(base_path)
         changed['budgets']['session_wall_s'] += 7
         base_path.write_text(yaml.safe_dump(changed), encoding='utf-8')
-        self.init_batch('new-base/001', 'configs/smoke.yaml')
-        _, new_cfg, new_state = common.load_run('new-base/001')
+        new_id = run.init('frozen-base', 'configs/smoke.yaml', new_batch=True)['run_id']
+        self.assertEqual(new_id, 'frozen-base/002')
+        _, new_cfg, new_state = common.load_run(new_id)
+        self.assertEqual(new_state['sessions'], [])
+        self.assertEqual(new_state['evaluations'], {})
         self.assertEqual(new_cfg['budgets']['session_wall_s'], changed['budgets']['session_wall_s'])
         self.assertNotEqual(new_state['configuration']['base']['sha'], reference['sha'])
-        with self.assertRaisesRegex(ValueError, 'base configuration changed'):
-            common.load_run('frozen-base/001')
         base_path.unlink()
-        for run_id in ('frozen-base/001', 'new-base/001'):
-            with self.subTest(run=run_id), self.assertRaisesRegex(ValueError, 'base configuration missing'):
-                common.load_run(run_id)
-        base_path.write_bytes(original)
         self.assertEqual(common.load_run('frozen-base/001')[1], frozen_cfg)
+        self.assertEqual(common.load_run(new_id)[1], new_cfg)
+        self.assertEqual(frozen_state['configuration']['base_yaml'].encode('utf-8'), original)
+        path = common.run_path(new_id) / 'state.json'
+        state = common.read_json(path)
+        state['configuration']['base_yaml'] += '# edited'
+        common.write_json(path, state)
+        with self.assertRaisesRegex(ValueError, 'frozen base configuration changed'):
+            common.load_run(new_id)
 
     def test_corrupted_archive_does_not_change_effective_configuration(self):
         _, _, state = self.snapshot()
@@ -237,7 +242,9 @@ class InheritanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'configuration changed|configuration.*mismatch'):
             common.load_run('sealed-draft/001')
         self.assertEqual(common.read_json(path.parent / 'state.json'), before)
-        self.assertTrue(run.init('sealed-draft/001')['resumed'])
+        with self.assertRaisesRegex(ValueError, 'configuration changed|configuration.*mismatch'):
+            run.init('sealed-draft/001')
+        self.assertTrue(run.resume('sealed-draft/001')['resumed'])
         self.assertEqual(common.load_run('sealed-draft/001')[1]['budgets']['researchers'], document['budgets']['researchers'])
 
     def test_binding_keeps_inheritance_sparse_and_records_changed_digest(self):

@@ -41,7 +41,7 @@ description: "启动或续接 AnySolvers 的研究循环与终局：复用已封
 
 基础 `configs/*.yaml` 为 schema_version 5，保存共享默认值；`runs/STUDY/NNN/run.yaml` 为 schema_version 8，只写 extends、initialization 引用及本批覆盖。不复制整份有效配置、公共 Skills、模块说明或共享环境。字段结构见 [schemas.json](../../../tools/schemas.json) 的 run_document；已有批次引用的基础配置不可原地更改。
 
-首次启动且仅覆盖人数、轮数时运行以下命令。已有实验默认沿用最近的编号，独立对照实验使用 --new-batch。
+首次启动且仅覆盖人数、轮数时运行以下命令。重复 init 只读取最近批次的封存配置。要使用当前配置开始独立实验，传入 `--new-batch`。
 
 ```sh
 .venv/bin/python -B tools/run.py init STUDY --config configs/STUDY.yaml --researchers N --rounds R

@@ -73,8 +73,8 @@ def direct(run_id, operation, session_id=None, relative=None, request_id=None,
     if operation != 'evaluate' or not request_id:
         return _direct(*arguments)
     c.identifier(request_id)
-    locks = c.run_path(run_id) / 'research/.requests'
-    locks.mkdir(exist_ok=True)
+    locks = c.job_runtime(c.run_path(run_id)) / 'requests'
+    locks.mkdir(parents=True, exist_ok=True)
     # Cover preflight as well as registration, so duplicate callers share one wait.
     with (locks / (request_id + '.client.lock')).open('a+') as lease:
         fcntl.flock(lease, fcntl.LOCK_EX)
