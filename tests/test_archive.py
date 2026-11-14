@@ -6,7 +6,8 @@ import unittest
 from unittest.mock import patch
 
 import test_contracts as helpers
-from tools import archive, common, measure, run, sandbox
+from tools import archive, common, measure, run
+from modules.evaluation.queued_python import executor
 
 
 class ArchiveTests(unittest.TestCase):
@@ -66,7 +67,7 @@ class ArchiveTests(unittest.TestCase):
         result = {'valid': True, 'score': 0, 'solution': {}, 'metrics': {},
                   'infrastructure_error': False, 'cleanup_confirmed': True,
                   'wall_s': 0, 'queue_wait_s': 0}
-        with patch.object(sandbox, 'execute', return_value=result) as execute:
+        with patch.object(executor, 'execute', return_value=result) as execute:
             summary = measure.evaluate(self.run_id, 'candidate-a', 'anchor-a', 'mock-only')
         execute.assert_called_once()
         self.assertEqual(summary['status'], 'completed')

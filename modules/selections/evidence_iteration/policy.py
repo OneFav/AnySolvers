@@ -17,7 +17,7 @@ def validate_delivery(run, cfg, state, data, add, entry):
         raise ValueError('continuation needs a sealed researcher iteration')
 
 
-def context(run, cfg, state, actor=None):
+def context(run, cfg, state, actor=None, wiki_query=None):
     value = base.context(run, cfg, state, actor)
     if actor is not None:
         own = {s['session_id'] for s in state['sessions'] if s['actor'] == actor}
@@ -40,4 +40,9 @@ def context(run, cfg, state, actor=None):
         value['evaluations'] = [r for r in value['evaluations'] if r['candidate_id'] in own_candidates
                                or r['evaluation_id'] in published_evaluations or r['candidate_id']=='baseline']
         value['iterations'] = [r for r in value['iterations'] if r['author_session'] in own]
+    if wiki_query:
+        from modules.selections.evidence_iteration.wiki import excerpts
+        matches = excerpts(wiki_query)
+        if matches:
+            value['wiki_suggestions'] = matches
     return value

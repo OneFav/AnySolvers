@@ -12,9 +12,11 @@ def validate_execution(cfg):
         policy = entry['execution']
         c.validate('execution', policy)
         if policy['mode'] != 'main':
-            raise ValueError('module execution must be main; subagents are research delegates only')
-        if slot != 'research' and policy['delegates']:
-            raise ValueError('only research may declare subagent delegates: ' + slot)
+            raise ValueError('module execution must be main; declare native workers as delegates')
+        delegates = policy['delegates']
+        if slot != 'research' and delegates:
+            if slot != 'final' or set(delegates) != {'dream'} or 'dream_context' not in entry['handlers']:
+                raise ValueError('unsupported module delegates: ' + slot)
         references = list(policy['delegates'].values())
         if references and not cfg['agent']['native_subagents']:
             raise ValueError('native subagents are disabled: ' + slot)

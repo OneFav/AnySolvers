@@ -29,7 +29,8 @@ def research_time(cfg, session, now=None):
     intervals = []
     pending_requests, pending_preflights = [], []
     for kind, waits in (('request', session.get('evaluation_waits', {})),
-                        ('preflight', session.get('preflight_waits', {}))):
+                        ('preflight', session.get('preflight_waits', {})),
+                        ('downtime', session.get('downtime', {}))):
         for key, wait in waits.items():
             began = dt.datetime.fromisoformat(wait['started_at'])
             ended = dt.datetime.fromisoformat(wait['finished_at']) if wait['finished_at'] else until
@@ -65,7 +66,7 @@ def _open(run, cfg, state, now):
     for eid, path in state['evaluations'].items():
         summary = c.read_json(c.contained(run, path))
         if summary['status'] == 'running' and summary.get('cleanup_confirmed') and not summary.get('infrastructure_error'):
-            # Each evaluation owns a lease while its cases may share sandbox slots.
+            # Each evaluation owns a lease while its cases may share executor slots.
             if invoke(cfg, 'evaluation', 'evaluation_active', run, eid):
                 continue
         if (summary['status'] not in ('completed', 'failed')
@@ -147,7 +148,8 @@ def activate_session(run, cfg, state, actor, native_id, now=None):
     if len(found) != 1:
         raise ValueError('no unique active session for actor')
     session = found[0]
-    if any(s is not session and s.get('native_id') == native_id for s in state['sessions']):
+    if any(native_id in s.get('previous_native_ids', []) or
+           (s is not session and s.get('native_id') == native_id) for s in state['sessions']):
         raise ValueError('collaborative research continuation must use a fresh native session')
     if session.get('activated_at'):
         if session['native_id'] != native_id:
@@ -161,6 +163,34 @@ def activate_session(run, cfg, state, actor, native_id, now=None):
     c.save_state(run, state)
     c.event(run, 'activate-session', session_id=session['session_id'], native_id=native_id,
             activated_at=activated)
+    return session
+
+
+def resume_session(run, cfg, state, actor, native_id, stopped_at=None):
+    now = c.utc()
+    found = [s for s in state['sessions'] if s['actor'] == actor and s['status'] == 'active']
+    if len(found) != 1:
+        raise ValueError('no unique active session for actor')
+    session = found[0]
+    if not session.get('activated_at') or session['native_id'] == native_id:
+        return activate_session(run, cfg, state, actor, native_id, now)
+    if not native_id.strip() or any(native_id in [s.get('native_id'), *s.get('previous_native_ids', [])]
+                                   for s in state['sessions']):
+        raise ValueError('replacement requires a fresh native session ID')
+    previous = session['native_id']
+    if stopped_at:
+        stopped = dt.datetime.fromisoformat(stopped_at)
+        start = dt.datetime.fromisoformat(session.get('replaced_at', session['activated_at']))
+        if stopped.tzinfo is None or not start <= stopped <= dt.datetime.fromisoformat(now):
+            raise ValueError('stopped-at must fall within this native session')
+        session.setdefault('downtime', {})[previous] = dict(started_at=stopped_at, finished_at=now)
+    for wait in session['preflight_waits'].values():
+        if not wait['finished_at']:
+            wait['finished_at'] = now
+    session.setdefault('previous_native_ids', []).append(previous)
+    session.update(native_id=native_id, replaced_at=now)
+    c.save_state(run, state)
+    c.event(run, 'resume-session', session_id=session['session_id'], previous=previous, native_id=native_id)
     return session
 
 

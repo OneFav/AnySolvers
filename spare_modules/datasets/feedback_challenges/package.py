@@ -167,7 +167,7 @@ def check_fixtures(env):
                 raise ValueError('benchmark accepted invalid action fixture')
 
 
-def load_environment(root, data, files):
+def load_environment(root, data, files, scorer_path=None):
     """Load an already registered benchmark; reject changed or unregistered assets."""
     root = Path(root)
     refs = inventory(root, data)
@@ -177,7 +177,16 @@ def load_environment(root, data, files):
         if relative not in files or c.sha(c.contained(root, relative)) != files[relative]:
             raise ValueError('benchmark/source file missing or changed: ' + relative)
     benchmark = _benchmark(root, data)
-    module = _load(c.contained(root, benchmark['evaluator_file']))
+    original = c.contained(root, benchmark['evaluator_file'])
+    if scorer_path is None:
+        module = _load(original)
+    else:
+        # Keep support files relative to the declared evaluator in both execution modes.
+        from types import ModuleType
+        module = ModuleType('repaired_benchmark')
+        module.__file__ = str(original)
+        exec(compile(scorer_path.read_bytes(), str(original), 'exec'), module.__dict__)
+        files = {**files, benchmark['evaluator_file']: c.sha(scorer_path)}
     names = ['validate_input'] + (['score'] if benchmark['protocol']['kind'] == 'function'
                                  else ['reset', 'step', 'score_episode'])
     for name in names:
@@ -189,10 +198,10 @@ def load_environment(root, data, files):
         'support': {os.path.relpath(path, start=Path(data['benchmark_file']).parent): files[path]
                     for path in benchmark['support_files']}})
     return SimpleNamespace(**{name: getattr(module, name) for name in names},
-        protocol=benchmark['protocol'], benchmark=benchmark, signature=signature,
+        root=root, file_hashes=files, protocol=benchmark['protocol'], benchmark=benchmark, signature=signature,
         baseline_path=c.contained(root, benchmark['baseline_file']),
         baseline_sha=files[benchmark['baseline_file']],
-        fixtures=c.read_json(c.contained(root, benchmark['tests_file'])))
+        fixtures=c.read_json(c.contained(root, benchmark['tests_file'])), evaluator_path=scorer_path or original)
 
 
 def _registered_environment(run, record, records):

@@ -15,7 +15,7 @@ import test_contracts as h
 from tools import common as c, run, research, measure
 from modules.research.notebook_collaboration import runtime
 from modules.selections.evidence_iteration import reports
-from modules.evaluation.queued_sandbox import sandbox, retention
+from modules.evaluation.queued_python import executor, retention
 
 
 class SyncedDesigns(unittest.TestCase):
@@ -63,7 +63,7 @@ class SyncedDesigns(unittest.TestCase):
                     queue_wait_s=0, cleanup_confirmed=True, infrastructure_error=False, **extra)
 
     def evaluate(self, cid='one', eid='eval', result=None):
-        with patch.object(sandbox, 'execute', return_value=result or self.fake()):
+        with patch.object(executor, 'execute', return_value=result or self.fake()):
             return measure.evaluate(self.run_id, cid, 'anchor-a', eid)
 
     def test_starting_idea_binds_full_source_and_detects_tampering(self):
@@ -82,7 +82,7 @@ class SyncedDesigns(unittest.TestCase):
         directory, cfg, _ = self.snapshot()
         relative, _ = h.write_dataset_files(directory, cfg, self.example, 'challenge-a', 'challenge', prefix='research/datasets')
         self.command('deliver', kind='dataset', manifest=relative, module='datasets')
-        with patch.object(sandbox, 'execute', return_value=failed):
+        with patch.object(executor, 'execute', return_value=failed):
             measure.evaluate(self.run_id, 'chosen', 'challenge-a', 'failed-eval')
         self.note('best', 'old-note'); self.note('chosen'); self.end()
         with self.assertRaisesRegex(ValueError, 'checkpoint candidate'):
@@ -134,7 +134,7 @@ class SyncedDesigns(unittest.TestCase):
                 self.note()
         with self.assertRaisesRegex(ValueError, 'reconciliation'):
             research.command(self.run_id, 'audit')
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('no solving')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('no solving')):
             recovered = self.command('reconcile-exchange')
             self.assertEqual(recovered['recovered_records'], ['note'])
             self.assertEqual(self.command('reconcile-exchange')['recovered_records'], [])
@@ -174,11 +174,11 @@ class SyncedDesigns(unittest.TestCase):
                 raise OSError('response commit lost')
             return real(directory, state)
         with patch.object(c, 'save_state', side_effect=lose_response), \
-                patch.object(sandbox, 'execute', return_value=self.fake()) as execute:
+                patch.object(executor, 'execute', return_value=self.fake()) as execute:
             with self.assertRaises(OSError): runtime.process(self.run_id, 'request')
         self.assertEqual(execute.call_count, 1)
         response = c.read_json(directory/'research/journal/request-response.json')['record']
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('must not replay')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('must not replay')):
             self.command('reconcile-exchange')
             self.assertEqual(runtime.process(self.run_id, 'request'), response)
         state = self.snapshot()[2]
@@ -194,7 +194,7 @@ class SyncedDesigns(unittest.TestCase):
             return real(directory, state)
         with patch.object(c, 'save_state', side_effect=fail_seal):
             with self.assertRaises(OSError): self.evaluate()
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('no replay')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('no replay')):
             result = self.command('reconcile-evaluation', evaluation='eval')
             self.assertTrue(result['reconciled'])
             self.assertFalse(result['execution_started'])
@@ -216,7 +216,7 @@ class SyncedDesigns(unittest.TestCase):
         path = self.snapshot()[0]/'research/reports/alice-r001.json'
         before = path.read_bytes()
         self.command('select', candidate='one')
-        with patch.object(sandbox, 'execute', return_value=self.fake(999)):
+        with patch.object(executor, 'execute', return_value=self.fake(999)):
             measure.evaluate(self.run_id, 'one', 'final-a', 'final-eval')
         directory, cfg, state = self.snapshot()
         self.assertEqual(reports.report_audit(directory, cfg, state), {'reports':1})

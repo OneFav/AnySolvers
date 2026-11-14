@@ -1,4 +1,4 @@
-"""Input-order feasible greedy baseline, executed only in the sandbox."""
+"""Input-order feasible greedy baseline."""
 def solve(case):
     remaining = case["capacity"]
     selected = []

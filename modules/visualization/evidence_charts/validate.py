@@ -4,6 +4,7 @@ from tools.common import contained, read_json
 
 def validate_delivery(run,cfg,state,data,add,entry):
     for eid in data['evaluation_ids']:
+        if eid in state.get('stale_evaluations', []):raise ValueError('evaluation requires rescoring')
         if eid not in state['evaluations']:raise ValueError('unknown evaluation reference')
         if read_json(contained(run,state['evaluations'][eid]))['status'] not in ('completed','failed'):
             raise ValueError('referenced evaluation not complete')

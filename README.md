@@ -14,9 +14,19 @@ python3 -m venv .venv
 .venv/bin/python -B -m unittest discover -s tests
 ```
 
-默认测试不调用研究模型，真实 Docker 测试需显式设置 `ANYSOLVERS_V2_DOCKER_TEST=1`。原生研究员由支持相应模型和 subagent 的 Codex 主会话启动。
+测试使用临时目录和小样例。原生研究员由支持相应模型和 subagent 的主会话启动。
 
-当前沙箱主要在 macOS + Docker 环境验证，依赖 POSIX 文件锁、定时器和系统临时目录。评测使用代码与配置中固定的 Docker 镜像 ID；仓库尚未提供该镜像的分发地址或 Dockerfile。在其他机器开始真实评测前，需要先准备并核验对应执行环境；只安装 Python 依赖并不能获得完整沙箱。运行数据和虚拟环境默认不纳入 Git。
+项目资产、研究记录和报告保存在本地。评测使用启动 CLI 的 Python；设置 SSH 目标后，候选、基线与评分器优先在该主机上运行。两种方式使用相同的评测命令。运行环境使用 POSIX 进程、文件锁和定时器。
+
+```sh
+export ANYSOLVERS_SSH_HOST=gpu-box
+# 可选，默认使用远端 python3
+export ANYSOLVERS_SSH_PYTHON=/opt/venvs/experiment/bin/python
+```
+
+SSH 目标可以是已有 SSH 别名或 `user@host`。远端解释器应能导入本次算法和评分器使用的依赖。恢复本地执行用 `unset ANYSOLVERS_SSH_HOST`。远端缓存位于 `~/.cache/anysolvers/`；内容相同的案例文件、源码和评分器只传一次。选定 SSH 后，连接错误会报告给调用者。若提交后断线，重试原请求，工具会按原作业 ID 取回结果。
+
+现有 schema_version 8 批次迁移到当前执行器时，按 `configs/smoke.yaml` 更新基础配置及 run.yaml 中的 compute 和 modules.evaluation.use，再执行 `tools/run.py resume STUDY/NNN`。更早的只读格式使用对应版本查看。
 
 ## 模块类别与具体方法
 
@@ -28,9 +38,9 @@ python3 -m venv .venv
 | 初始化 | datasets | [stratified_holdout](modules/datasets/stratified_holdout/MODULE.md) | 仿真/真实数据/生成实例与评测接口初始化 |
 | 初始化 | ideas | [diverse_hypotheses](modules/ideas/diverse_hypotheses/MODULE.md) | 有区别、可验证的初始假设 |
 | 循环 | research | [notebook_collaboration](modules/research/notebook_collaboration/MODULE.md) | 多研究员、笔记续接、共享发现和源码 |
-| 循环 | evaluation | [queued_sandbox](modules/evaluation/queued_sandbox/MODULE.md) | 调用已初始化环境的运行时沙箱评测 |
+| 循环 | evaluation | [queued_python](modules/evaluation/queued_python/MODULE.md) | 调用已初始化环境的本地和 SSH 评测 |
 | 循环 | selections | [evidence_iteration](modules/selections/evidence_iteration/MODULE.md) | 根据证据提出下一代算法想法 |
-| 终局 | final | [frozen_holdout](modules/final/frozen_holdout/MODULE.md) | 冻结选择、最终测试和报告 |
+| 终局 | final | [dream](modules/final/dream/MODULE.md) | 冻结选择、最终测试、报告与子 agent 发布的带引用领域 wiki |
 | 终局 | visualization | [evidence_charts](modules/visualization/evidence_charts/MODULE.md) | 基于已有测量的图表 |
 
 ```text
@@ -44,7 +54,7 @@ modules/
       sessions.py
       schemas/
   evaluation/
-    queued_sandbox/...
+    queued_python/...
   ...其余六个类别...
 spare_modules/
   datasets/
@@ -61,12 +71,13 @@ runs/STUDY/
 
 ## 启动与研究员接口
 
-项目提供两个显式调用的 Skills，放在 `.agents/skills/`，只引用现有模块，不复制到运行目录：
+项目提供三个显式调用的 Skills，放在 `.agents/skills/`，只引用现有模块，不复制到运行目录：
 
 | 入口 | 职责 | 主要产物 |
 | --- | --- | --- |
 | [$anysolvers-initialize](.agents/skills/anysolvers-initialize/SKILL.md) | 交互补齐需求、数据与资源，准备 task/datasets/ideas 并封存共享初始化；默认不启动模型或评测算法 | `configs/STUDY.yaml`、`runs/STUDY/initialization/` |
 | [$anysolvers-research](.agents/skills/anysolvers-research/SKILL.md) | 明确本批预算与模型/算力配置，启动研究员直接评测的循环，冻结候选后完成获授权的终局和图表 | `runs/STUDY/NNN/run.yaml`、研究代码/记录、最终报告与图 |
+| [$anysolvers-dream](.agents/skills/anysolvers-dream/SKILL.md) | 跨任务整合开发证据、提出待检验的机制 | 领域主题页、文件名和正文均标识的无证据猜想页 |
 
 在以 **AnySolvers-v2 为工作目录**的 Codex 会话中点名调用。例如：
 
@@ -75,9 +86,9 @@ runs/STUDY/
 使用 $anysolvers-research。复用 study ……；明确本批预算后，开始研究并完成最终测试。
 ```
 
-两个入口设为显式调用，单纯讨论框架不会自动启动。未在当前会话列表出现时，可先直接让主会话读取上述 SKILL.md；在父目录打开的会话不会因此自动加载子项目技能。项目目录发现与调用方式遵循 [OpenAI 官方 Skills 文档](https://learn.chatgpt.com/docs/build-skills)。没有全局安装或额外 MCP 服务。
+三个入口设为显式调用，单纯讨论框架不会自动启动。未在当前会话列表出现时，可先直接让主会话读取上述 SKILL.md；在父目录打开的会话不会因此自动加载子项目技能。项目目录发现与调用方式遵循 [OpenAI 官方 Skills 文档](https://learn.chatgpt.com/docs/build-skills)。没有全局安装或额外 MCP 服务。
 
-人数/轮数与时限等易变值在编号批次覆盖；模型、环境等默认值从基础配置继承。默认评测次数不限；显式设置有限额度时需计入基线和最终测试。`final.authorized` 必须对应用户授权。初始化检查与实际沙箱基线测试分开，后者在研究启动阶段计账执行。
+人数/轮数与时限等易变值在编号批次覆盖；模型、环境等默认值从基础配置继承。默认评测次数不限；显式设置有限额度时需计入基线和最终测试。`final.authorized` 必须对应用户授权。初始化检查与基线实测分开，后者在研究启动阶段计账执行。
 
 先看 [START.md](START.md)。`configs/smoke.yaml` 是轻量模板，默认 gpt-6.1-sol/high、2 位研究员各 2 会话；`run.yaml` 继承并按次覆盖预算。每轮默认 **40 分钟有效研究时间**，扣除启动等待、评测前置检查、排队和执行。到期禁止新评测，保留笔记与收尾接口，不杀原生进程。整批准入窗口为 **96 小时**，评测次数不限，默认 **3 槽**。模板引用 `tests/fixtures/tiny-knapsack/task.json`，这是任务样例，不是实验成绩。
 
@@ -97,7 +108,7 @@ runs/STUDY/
 
 ## 边界与检查
 
-候选在固定 Docker 中运行：单核、只读根盘、无网络/GPU和固定资源限制。预算不会因直接调用扩大，未决尝试不自动重跑。原生 agent 共享宿主文件权限，工具访问规则不是角色级 OS 隔离。
+研究员可以直接运行候选草稿，用开发样例调试。正式成绩取自统一评测入口。候选进程和研究员均使用所在机器的用户权限。
 
 `tools/run.py launch-spec --config configs/smoke.yaml --module research --role researcher` 只展示启动参数，不启动模型。结构和接口检查：`.venv/bin/python -B -m unittest discover -s tests`。测试 mock 不代表真实算法成绩。
 
@@ -111,6 +122,12 @@ task 只产出 task.md / task.json；datasets 根据定义准备可执行评测�
 
 每轮保存完整起点；主会话在会话结束后核对 checkpoint 指定的源码并封存方法报告，程序附加可信开发成绩。报告完成后才能续接该研究员或冻结终局候选，下一轮算法想法仍由研究员提出。命令见 [selections 契约](modules/selections/evidence_iteration/MODULE.md)。终局可先用 `tools/run.py recommendation RUN` 只读查看合格候选。
 
-新批次默认摘要留存交互轨迹，需完整轨迹时在封存前设置 `modules.evaluation.params.trace_retention: full`。固定 Docker、单例/整次限额与两个研究时钟不变。
+新批次默认摘要留存交互轨迹，需完整轨迹时在封存前设置 `modules.evaluation.params.trace_retention: full`。执行位置随结果记录。
 
-通过 `ANYSOLVERS_PROJECT_ROOT` 使用独立项目目录，新批次固定实现内容摘要；详见 [路径约定](docs/PATHS.md)。工具意图和完成回执支持无执行的补账，未知求解继续阻塞；详见 [恢复说明](docs/RECOVERY.md)。
+通过 `ANYSOLVERS_PROJECT_ROOT` 使用独立项目目录，新批次固定实现内容摘要；详见 [路径约定](docs/PATHS.md)。迁机或故障修复后使用 `tools/run.py resume STUDY/NNN` 继续原实验。中断评测使用 `retry-evaluation` 沿用原 ID 并补算剩余案例。独立对照用 `init STUDY --new-batch --config configs/STUDY.yaml`。[恢复说明](docs/RECOVERY.md)
+
+## 领域 wiki 与 Dream
+
+一份 AnySolvers 项目对应一个领域，`runs/<task>/` 对应该领域的一个研究问题。Dream 按需跨任务整理开发发现与待验证猜想，主题页保存在本项目的 `dream/wiki/topics/`。从 [Dream 使用说明](dream/DREAM.md) 开始。研究员仅在单次 `context` 显式传入 `--wiki-query '关键词'` 时读取相关摘录。普通科研和最终选择独立运行。
+
+默认终局方法 `modules/final/dream` 在交付报告后，由主会话启动专用子 agent 直接更新一篇有本批开发证据引用的领域主题页。已有配置可在 `modules.final.use` 选择该方法并在 `agent.profiles` 增加 `dream: {}` 继承模型默认值。原 `frozen_holdout` 方法仍可独立使用。显式调用 `$anysolvers-dream` 可进一步跨任务整合并生成 `topics/无证据猜想-<问题>.md`。

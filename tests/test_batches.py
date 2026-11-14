@@ -6,7 +6,8 @@ from unittest.mock import patch
 import yaml
 
 import test_contracts as helpers
-from tools import common, measure, run, sandbox, study
+from tools import common, measure, run, study
+from modules.evaluation.queued_python import executor
 
 
 class BatchTests(unittest.TestCase):
@@ -19,7 +20,7 @@ class BatchTests(unittest.TestCase):
     deliver_dataset = helpers.ContractTests.deliver_dataset
 
     def second(self):
-        return run.init('contract-study', 'configs/smoke.yaml')['run_id']
+        return run.init('contract-study', 'configs/smoke.yaml', new_batch=True)['run_id']
 
     def test_shared_inputs_do_not_share_result_cache_or_candidates(self):
         first, second = self.run_id, self.second()
@@ -28,7 +29,7 @@ class BatchTests(unittest.TestCase):
                   for p in initialization.rglob('*') if p.is_file()}
         success = {'valid':True,'score':2.0,'solution':{},'metrics':{},'wall_s':0.1,
                    'queue_wait_s':0.0,'infrastructure_error':False,'cleanup_confirmed':True}
-        with patch.object(sandbox, 'execute', return_value=success) as execute:
+        with patch.object(executor, 'execute', return_value=success) as execute:
             for ref in (first,second):
                 self.run_id=ref
                 self.deliver_candidate(source="raise RuntimeError('must not execute on host')\n")

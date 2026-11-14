@@ -23,6 +23,7 @@ handlers:
   validate_delivery: package.py
   inventory: package.py
   load_environment: package.py
+  check_fixtures: package.py
   recommend_compute: resources.py
 files: []
 defaults: {}

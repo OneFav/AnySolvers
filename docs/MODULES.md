@@ -17,7 +17,7 @@
 
 声明的依赖必须在同一个方法目录内，不能通过 `../` 借用兄弟方法或备用区的文件。通用入口仍在 tools。不同类别通过配置绑定的 handler 通信；同一类别不自动保证两种方法可互换，还需要匹配输入输出和操作语义。
 
-当前组合使用 datasets 的评测包登记/环境加载、research 的准入和记录审计、evaluation 的预检/评测/详情、selections 的证据读取/迭代交付。替换时应保留所需操作并做行为测试。只有 research 管理 subagent，其余方法不会另起模型。
+当前组合使用 datasets 的评测包登记/环境加载、research 的准入和记录审计、evaluation 的预检/评测/详情、selections 的证据读取/迭代交付。替换时应保留所需操作并做行为测试。research 管理研究员；final/dream 声明专用的 dream 子 agent，负责将本批开发发现直接整合到领域 wiki。
 
 ## 更换方法
 
@@ -28,7 +28,7 @@ modules:
   research:
     use: modules/research/notebook_collaboration
   evaluation:
-    use: modules/evaluation/queued_sandbox
+    use: modules/evaluation/queued_python
 ```
 
 例如启用反馈驱动的困难实例构造：将 `spare_modules/datasets/feedback_challenges/` 整包移到 `modules/datasets/feedback_challenges/`，再绑定。原方法在不再被使用后整包移入备用区。
@@ -39,13 +39,13 @@ modules:
 .venv/bin/python -B tools/run.py bind STUDY/001 datasets modules/datasets/feedback_challenges
 ```
 
-共享初始化仍依赖其固定的数据格式定义，不能在依赖尚存时移走所需包。因此仍被不同运行或初始化使用的两种方法都可以在 modules 下；完全闲置的才进备用区。task 不能中途更换，evaluation 在首次测量后不能更换。常规对比优先使用新编号批次，任务/初始化协议变化时新建研究名。
+共享初始化仍依赖其固定的数据格式定义，不能在依赖尚存时移走所需包。因此仍被不同运行或初始化使用的两种方法都可以在 modules 下；完全闲置的才进备用区。任务属于共享初始化。执行器修复后在原编号 resume。常规对比优先使用新编号批次，任务/初始化协议变化时新建研究名。
 
-只改人数、轮数和资源预算时，在新批次 run.yaml 覆盖参数即可，不必创建新方法目录。
+只改人数、轮数和资源预算时，在原批次 run.yaml 覆盖参数并执行 resume 即可，不必创建新方法目录。
 
 ## 命名与记录
 
-目录用小写机制名，例如 notebook_collaboration、queued_sandbox、evidence_iteration；MODULE 的 id 对应连字符写法。思想变化使用新方法名，本轮参数留在 run.yaml。
+目录用小写机制名，例如 notebook_collaboration、queued_python、evidence_iteration；MODULE 的 id 对应连字符写法。思想变化使用新方法名，本轮参数留在 run.yaml。
 
 不保留旧路径别名、迁移映射或历史哈希档案。当前运行仍记录输入、源码和配置哈希，以发现运行过程中意外改动；这是一致性检查，不是旧路径兼容。
 

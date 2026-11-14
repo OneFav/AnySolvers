@@ -36,6 +36,8 @@ def _development(state, summary):
 
 
 def _research_evidence(run, state, eid):
+    if eid in state.get('stale_evaluations', []):
+        raise ValueError('evaluation requires rescoring')
     summary = _summary(run, state, eid)
     if summary['status'] not in ('completed', 'failed'):
         raise ValueError('referenced evaluation not complete')
@@ -56,6 +58,8 @@ def _research_evidence(run, state, eid):
 
 def _ended_development(run, state):
     for eid in sorted(state['evaluations']):
+        if eid in state.get('stale_evaluations', []):
+            continue
         summary = _summary(run, state, eid)
         if summary['status'] in ('completed', 'failed') and _development(state, summary):
             yield _research_evidence(run, state, eid)

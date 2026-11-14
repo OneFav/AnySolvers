@@ -16,8 +16,8 @@ def recommend_compute(protocol, dataset_counts, current_compute, resource_contra
     episode = protocol['kind'] == 'episode'
     limits = dict(current_compute['limits'])
     limits.update(wall_s=120 if episode else 60,
-                  cpu_s=60 if episode else 30,
-                  memory_mb=1024 if episode else 512)
+                  cpu_s=60 if episode else 30)
+    suggested_memory_mb = 1024 if episode else 512
     basis = 'heuristic_starter_not_measured'
     if measured is not None:
         if (not isinstance(measured, dict) or not isinstance(measured.get('note'), str)
@@ -33,7 +33,7 @@ def recommend_compute(protocol, dataset_counts, current_compute, resource_contra
         if 'cpu_s' in values:
             limits['cpu_s'] = max(2, math.ceil(4 * values['cpu_s']))
         if 'peak_memory_mb' in values:
-            limits['memory_mb'] = max(128, 64 * math.ceil(2 * values['peak_memory_mb'] / 64))
+            suggested_memory_mb = max(128, 64 * math.ceil(2 * values['peak_memory_mb'] / 64))
         basis = 'caller_reported_public_baseline_with_margin_not_remeasured'
     limits['wall_s'] = max(limits['wall_s'], limits['cpu_s'],
                            math.ceil(protocol.get('action_wall_s', 0)))
@@ -50,12 +50,12 @@ def recommend_compute(protocol, dataset_counts, current_compute, resource_contra
             'evaluation_wall_s': evaluation_wall_s}},
         'capacity_to_check': {
             'cpu_cores_including_host_reserve': slots + 1,
-            'memory_mb_including_host_reserve': slots * limits['memory_mb'] + 1024},
+            'memory_mb_including_host_reserve': slots * suggested_memory_mb + 1024},
         'formula': {'largest_dataset_cases': count, 'case_wall_s': limits['wall_s'],
                     'case_overhead_reserve_s': reserve, 'additional_margin_s': margin},
         'notes': [
             'Instance counts must be agreed during initialization; null capacity does not choose counts.',
-            'These are proposed limits, not a performance guarantee or a sandbox preflight result.',
+            'These are proposed limits, not a performance guarantee.',
             'Measured inputs, if supplied, must describe authorized public-baseline checks; this helper does not verify or repeat them.',
             'Write the chosen limits to the configuration and tell the user before sealing and starting research.',
             'Evaluation wall time excludes queueing; action and case limits remain independent.',

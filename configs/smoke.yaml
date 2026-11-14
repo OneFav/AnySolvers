@@ -10,19 +10,15 @@ agent:
   profiles:
     setup: {}
     research: {}
+    dream: {}
 compute:
-  executor: local-docker
-  image: sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
   max_parallel_evaluations: 3
   # Lightweight fixture only; initialization recommends limits for the actual task.
   evaluation_wall_s: 960
   limits:
     wall_s: 10
     cpu_s: 2
-    memory_mb: 128
-    pids: 32
     output_bytes: 65536
-    tmp_mb: 16
 budgets:
   researchers: 2
   rounds_per_researcher: 2
@@ -43,10 +39,10 @@ modules:
   research:
     use: modules/research/notebook_collaboration
   evaluation:
-    use: modules/evaluation/queued_sandbox
+    use: modules/evaluation/queued_python
   selections:
     use: modules/selections/evidence_iteration
   final:
-    use: modules/final/frozen_holdout
+    use: modules/final/dream
   visualization:
     use: modules/visualization/evidence_charts

@@ -2,7 +2,7 @@
 
 The CSV is hand-authored test input, not empirical research data. Its source.kind
 is 'real' solely to exercise the provided-data import route. Default tests mock
-only sandbox execution; opt-in tests run the exact same packages in Docker.
+only the execution call; integration tests exercise real Python processes.
 No model sessions, stored repository runs, network downloads, or formal research.
 """
 import copy
@@ -17,7 +17,7 @@ from unittest.mock import patch
 import yaml
 
 from tools import common as c, measure, run, study
-from modules.evaluation.queued_sandbox import sandbox
+from modules.evaluation.queued_python import executor
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -94,6 +94,9 @@ def solve(observation):
 
 class RuntimeFixture:
     def setUp(self):
+        location = patch.dict(os.environ, ANYSOLVERS_SSH_HOST="")
+        location.start()
+        self.addCleanup(location.stop)
         temporary = tempfile.TemporaryDirectory(prefix='anysolvers-runtime-integration-', dir='/private/tmp')
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -206,8 +209,8 @@ class RuntimeFixture:
         self.assertEqual(summary['score'], expected)
         self.assertEqual(summary['valid_cases'], 2)
         self.assertTrue(summary['cleanup_confirmed'])
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('cached execution repeated')), \
-             patch.object(sandbox, 'execute_episode', side_effect=AssertionError('cached episode repeated')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('cached execution repeated')), \
+             patch.object(executor, 'execute_episode', side_effect=AssertionError('cached episode repeated')):
             cached = measure.evaluate(run_id, 'baseline', 'anchor', 'baseline-check')
             alias = measure.evaluate(run_id, 'baseline', 'anchor', 'same-request-new-id')
         self.assertTrue(cached['cached'])
@@ -243,7 +246,7 @@ class EnvironmentRuntimeTests(RuntimeFixture, unittest.TestCase):
         self.assertEqual([r['case_id'] for r in rows], ['import-z', 'import-a'])
         self.assertEqual([r['input']['values'] for r in rows], [[2, 5], [7, 3]])
 
-        def execute(source, case, image, limits, scorer, lock, **kwargs):
+        def execute(source, case, limits, scorer, lock, **kwargs):
             self.assertEqual(source, FUNCTION_BASELINE)
             # Known fixture solution; do not import or run submitted baseline code.
             solution = 5 if case['values'] == [2, 5] else 7
@@ -251,8 +254,8 @@ class EnvironmentRuntimeTests(RuntimeFixture, unittest.TestCase):
             return dict(result, valid=True, solution=solution, infrastructure_error=False,
                         cleanup_confirmed=True, wall_s=.01, queue_wait_s=0.0)
 
-        with patch.object(sandbox, 'execute', side_effect=execute) as execute_call, \
-             patch.object(sandbox, 'execute_episode', side_effect=AssertionError('wrong protocol')):
+        with patch.object(executor, 'execute', side_effect=execute) as execute_call, \
+             patch.object(executor, 'execute_episode', side_effect=AssertionError('wrong protocol')):
             records = self.evaluate_and_check_cache(run_id, 6)
         self.assertEqual(execute_call.call_count, 2)
         self.assertEqual([r['result']['score'] for r in records], [5, 7])
@@ -260,7 +263,7 @@ class EnvironmentRuntimeTests(RuntimeFixture, unittest.TestCase):
     def test_episode_initializes_persistent_observation_only_runtime_route(self):
         run_id, _, rows = self.initialize(episode=True)
 
-        def execute(source, case, image, limits, environment, lock, **kwargs):
+        def execute(source, case, limits, environment, lock, **kwargs):
             self.assertEqual(source, EPISODE_BASELINE)
             self.assertEqual(kwargs['max_steps'], 6)
             self.assertEqual(kwargs['action_wall_s'], 3)
@@ -277,26 +280,23 @@ class EnvironmentRuntimeTests(RuntimeFixture, unittest.TestCase):
             return dict(score, valid=True, solution=None, trace=trace, infrastructure_error=False,
                         cleanup_confirmed=True, wall_s=.01, queue_wait_s=0.0)
 
-        with patch.object(sandbox, 'execute_episode', side_effect=execute) as execute_call, \
-             patch.object(sandbox, 'execute', side_effect=AssertionError('wrong protocol')):
+        with patch.object(executor, 'execute_episode', side_effect=execute) as execute_call, \
+             patch.object(executor, 'execute', side_effect=AssertionError('wrong protocol')):
             records = self.evaluate_and_check_cache(run_id, 1)
         self.assertEqual(execute_call.call_count, 2)
         self.assert_episode_visibility(records, rows)
 
 
-@unittest.skipUnless(os.environ.get('ANYSOLVERS_V2_DOCKER_TEST') == '1', 'real Docker integration requires opt-in')
-class EnvironmentDockerIntegrationTests(RuntimeFixture, unittest.TestCase):
-    def test_csv_package_through_real_sandbox(self):
+class EnvironmentProcessIntegrationTests(RuntimeFixture, unittest.TestCase):
+    def test_csv_package_through_python_process(self):
         run_id, _, _ = self.initialize()
         records = self.evaluate_and_check_cache(run_id, 6)
         self.assertEqual([r['result']['score'] for r in records], [5, 7])
-        self.assertTrue(all(r['result']['isolation_verified'] for r in records))
 
-    def test_episode_package_through_real_sandbox(self):
+    def test_episode_package_through_python_process(self):
         run_id, _, rows = self.initialize(episode=True)
         records = self.evaluate_and_check_cache(run_id, 1)
         self.assert_episode_visibility(records, rows)
-        self.assertTrue(all(r['result']['isolation_verified'] for r in records))
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-"""Sparse run configuration checks; never launch agents, candidates or Docker."""
+"""Sparse run configuration checks; never launch agents, candidates."""
 import argparse
 import copy
 import fcntl
@@ -237,8 +237,8 @@ class InheritanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'configuration changed|configuration.*mismatch'):
             common.load_run('sealed-draft/001')
         self.assertEqual(common.read_json(path.parent / 'state.json'), before)
-        with self.assertRaisesRegex(ValueError, 'run exists|initialized'):
-            run.init('sealed-draft/001')
+        self.assertTrue(run.init('sealed-draft/001')['resumed'])
+        self.assertEqual(common.load_run('sealed-draft/001')[1]['budgets']['researchers'], document['budgets']['researchers'])
 
     def test_binding_keeps_inheritance_sparse_and_records_changed_digest(self):
         run_dir, old_cfg, old_state = self.snapshot()
@@ -265,7 +265,7 @@ class InheritanceTests(unittest.TestCase):
         self.assertIn('previous_config', binding)
 
     def test_runs_share_fixed_base_without_sharing_mutable_state(self):
-        created = run.init('contract-study', 'configs/smoke.yaml', researchers=1, rounds=1)
+        created = run.init('contract-study', 'configs/smoke.yaml', researchers=1, rounds=1, new_batch=True)
         self.assertEqual(created['run_id'], 'contract-study/002')
         second_dir, second_cfg, second_state = common.load_run('contract-study/002')
         before = {name: (second_dir / name).read_bytes()

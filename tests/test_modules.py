@@ -1,4 +1,4 @@
-"""Module substitution and complete orchestration contracts; no model or Docker calls."""
+"""Module substitution and complete orchestration contracts; no model calls."""
 import argparse
 import json
 import shutil
@@ -10,7 +10,8 @@ from unittest.mock import patch
 import yaml
 
 import test_contracts as helpers
-from tools import common, execution, measure, run, sandbox
+from tools import common, execution, measure, run
+from modules.evaluation.queued_python import executor
 from tools.module_runtime import read_module, dependency
 
 
@@ -120,7 +121,7 @@ class ModuleTests(unittest.TestCase):
         path=self.variant('evaluation','stub',lambda m:m['handlers'].update(evaluate='stub.py'),
             "def evaluate(*args):\n    return {'source':'replacement-evaluator','arguments':list(args[:4])}\n")
         self.command('bind',slot='evaluation',path=path)
-        with patch.object(sandbox,'execute') as execute:
+        with patch.object(executor,'execute') as execute:
             result=measure.evaluate(self.run_id,'candidate','dataset','eval-a')
         self.assertEqual(result['source'],'replacement-evaluator');execute.assert_not_called()
         self.assertEqual(self.snapshot()[2]['evaluations'],{})  # dispatch test, not a real score
@@ -137,26 +138,27 @@ class ModuleTests(unittest.TestCase):
     def test_measure_cli_import_does_not_load_default_implementation(self):
         result=subprocess.run([sys.executable,'-c',
             "import sys; from tools.measure import main; "
-            "assert 'modules.evaluation.queued_sandbox.measure' not in sys.modules; "
-            "assert 'modules.evaluation.queued_sandbox.sandbox' not in sys.modules"],
+            "assert 'modules.evaluation.queued_python.measure' not in sys.modules; "
+            "assert 'modules.evaluation.queued_python.executor' not in sys.modules"],
             cwd=self.root,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
 
-    def test_measurement_fixes_task_and_evaluation_implementation(self):
+    def test_measurement_keeps_task_and_allows_executor_repair(self):
         self.deliver_candidate();self.deliver_dataset()
         result={'valid':True,'score':2.0,'solution':{},'metrics':{},'wall_s':0.1,
                 'queue_wait_s':0.0,'infrastructure_error':False,'cleanup_confirmed':True}
-        with patch.object(sandbox,'execute',return_value=result):
+        with patch.object(executor,'execute',return_value=result):
             measure.evaluate(self.run_id,'candidate-a','anchor-a','eval-a')
         directory=self.root/'runs'/self.run_id
         before={str(p.relative_to(directory)):common.sha(p)
                 for p in directory.rglob('*') if p.is_file()}
-        for slot, reason in (('task', 'task belongs to shared initialization'),
-                             ('evaluation', 'fixed after measurement')):
-            with self.subTest(slot=slot),self.assertRaisesRegex(ValueError,reason):
-                self.command('bind',slot=slot,path=helpers.method_path(slot))
+        with self.assertRaisesRegex(ValueError, 'task belongs to shared initialization'):
+            self.command('bind',slot='task',path=helpers.method_path('task'))
         self.assertEqual(before,{str(p.relative_to(directory)):common.sha(p)
                                  for p in directory.rglob('*') if p.is_file()})
+        self.command('bind', slot='evaluation', path=helpers.method_path('evaluation'))
+        self.assertEqual(measure.details(self.run_id,'eval-a')['summary']['score'],2)
+
 
     def test_module_cannot_omit_required_operations(self):
         for slot,operation in (('evaluation','evaluate'),('evaluation','details'),
@@ -168,7 +170,7 @@ class ModuleTests(unittest.TestCase):
     def test_measurement_uses_bound_input_schemas(self):
         self.deliver_candidate();self.deliver_dataset()
         run_dir,cfg,state=self.snapshot()
-        from modules.evaluation.queued_sandbox.measure import _inputs
+        from modules.evaluation.queued_python.measure import _inputs
         with patch.object(common,'validate',wraps=common.validate) as validate:
             _inputs(run_dir,cfg,state,'candidate-a','anchor-a')
         relevant=[call for call in validate.call_args_list
@@ -262,7 +264,7 @@ class ModuleTests(unittest.TestCase):
         self.command('deliver',kind='candidate',manifest=manifest,module='research')
         success={'valid':True,'score':2.0,'solution':{},'metrics':{},'wall_s':0.1,
                  'queue_wait_s':0.0,'infrastructure_error':False,'cleanup_confirmed':True}
-        with patch.object(sandbox,'execute',return_value=success):
+        with patch.object(executor,'execute',return_value=success):
             measured=measure.evaluate(self.run_id,'candidate-a','anchor-a','eval-a')
         self.assertTrue(measured['all_valid'])
         self.write_iteration('iteration-a','candidate-a',['eval-a'],actor='author-a')
@@ -295,7 +297,7 @@ class ModuleTests(unittest.TestCase):
         self.deliver_candidate()
         success={'valid':True,'score':2.0,'solution':{},'metrics':{},'wall_s':0.1,
                  'queue_wait_s':0.0,'infrastructure_error':False,'cleanup_confirmed':True}
-        with patch.object(sandbox,'execute',return_value=success):
+        with patch.object(executor,'execute',return_value=success):
             development=measure.evaluate(self.run_id,'candidate-a','anchor-a','eval-a')
             self.assertTrue(development['all_valid'])
             context=self.command('iteration-context',actor='author')
@@ -314,7 +316,7 @@ class ModuleTests(unittest.TestCase):
             self.assertEqual(candidate['session_id'],second_session['session_id'])
             helpers.checkpoint_session(self, 'author')
             self.command('end-session',actor='author',status='completed',native_id=None)
-            with patch.object(sandbox,'execute',return_value={**success,'score':1.0}):
+            with patch.object(executor,'execute',return_value={**success,'score':1.0}):
                 improvement=measure.evaluate(self.run_id,'candidate-b','anchor-a','eval-b')
                 self.assertTrue(improvement['all_valid'])
                 self.command('select',candidate='candidate-b')

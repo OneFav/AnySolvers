@@ -1,4 +1,4 @@
-"""Study initialization checks in disposable roots; no candidates or Docker."""
+"""Study initialization checks in disposable roots; no candidates."""
 import copy
 import fcntl
 import json

@@ -1,4 +1,4 @@
-"""Pre-launch configuration checks; no model requests, candidates or Docker."""
+"""Pre-launch configuration checks; no model requests, candidates."""
 import argparse
 import copy
 from pathlib import Path
@@ -85,7 +85,7 @@ class ExecutionTests(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             common.validate('execution', {'mode':'main', 'profile':'setup', 'delegates':{}})
 
-    def test_only_research_can_declare_internal_delegates(self):
+    def test_only_research_and_final_dream_can_declare_internal_delegates(self):
         _, base, _ = self.snapshot()
         for slot in base['modules']:
             cfg = copy.deepcopy(base)

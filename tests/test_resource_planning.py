@@ -104,7 +104,7 @@ class ResourcePlanningTests(unittest.TestCase):
                       {'wall_s': 2, 'cpu_s': 1, 'peak_memory_mb': 90,
                        'note': 'Authorized public anchor baseline sample; externally supplied.'})
         limits = result['configuration_patch']['compute']['limits']
-        self.assertEqual((limits['wall_s'], limits['cpu_s'], limits['memory_mb']), (10, 4, 192))
+        self.assertEqual((limits['wall_s'], limits['cpu_s'], result['capacity_to_check']['memory_mb_including_host_reserve']), (10, 4, 3 * 192 + 1024))
         self.assertIn('not_remeasured', result['basis'])
         with self.assertRaisesRegex(ValueError, 'finite'):
             plan('resources', 'configs/smoke.yaml', {'wall_s': float('nan'), 'note': 'bad'})

@@ -619,13 +619,6 @@
         "compute": {
           "type": "object",
           "properties": {
-            "executor": {
-              "const": "local-docker"
-            },
-            "image": {
-              "type": "string",
-              "minLength": 1
-            },
             "limits": {
               "type": "object",
               "properties": {
@@ -637,19 +630,7 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "memory_mb": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "pids": {
-                  "type": "integer",
-                  "minimum": 1
-                },
                 "output_bytes": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "tmp_mb": {
                   "type": "integer",
                   "minimum": 1
                 }
@@ -657,10 +638,7 @@
               "required": [
                 "wall_s",
                 "cpu_s",
-                "memory_mb",
-                "pids",
-                "output_bytes",
-                "tmp_mb"
+                "output_bytes"
               ],
               "additionalProperties": false
             },
@@ -676,8 +654,6 @@
             }
           },
           "required": [
-            "executor",
-            "image",
             "limits",
             "max_parallel_evaluations"
           ],
@@ -866,13 +842,6 @@
         "compute": {
           "type": "object",
           "properties": {
-            "executor": {
-              "const": "local-docker"
-            },
-            "image": {
-              "type": "string",
-              "minLength": 1
-            },
             "limits": {
               "type": "object",
               "properties": {
@@ -884,19 +853,7 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "memory_mb": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "pids": {
-                  "type": "integer",
-                  "minimum": 1
-                },
                 "output_bytes": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "tmp_mb": {
                   "type": "integer",
                   "minimum": 1
                 }
@@ -904,10 +861,7 @@
               "required": [
                 "wall_s",
                 "cpu_s",
-                "memory_mb",
-                "pids",
-                "output_bytes",
-                "tmp_mb"
+                "output_bytes"
               ],
               "additionalProperties": false
             },
@@ -923,8 +877,6 @@
             }
           },
           "required": [
-            "executor",
-            "image",
             "limits",
             "max_parallel_evaluations"
           ],
@@ -1063,13 +1015,6 @@
         "compute": {
           "type": "object",
           "properties": {
-            "executor": {
-              "const": "local-docker"
-            },
-            "image": {
-              "type": "string",
-              "minLength": 1
-            },
             "limits": {
               "type": "object",
               "properties": {
@@ -1081,19 +1026,7 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "memory_mb": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "pids": {
-                  "type": "integer",
-                  "minimum": 1
-                },
                 "output_bytes": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "tmp_mb": {
                   "type": "integer",
                   "minimum": 1
                 }
@@ -1370,13 +1303,6 @@
         "compute": {
           "type": "object",
           "properties": {
-            "executor": {
-              "const": "local-docker"
-            },
-            "image": {
-              "type": "string",
-              "minLength": 1
-            },
             "limits": {
               "type": "object",
               "properties": {
@@ -1388,19 +1314,7 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "memory_mb": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "pids": {
-                  "type": "integer",
-                  "minimum": 1
-                },
                 "output_bytes": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "tmp_mb": {
                   "type": "integer",
                   "minimum": 1
                 }
@@ -1655,13 +1569,6 @@
         "compute": {
           "type": "object",
           "properties": {
-            "executor": {
-              "const": "local-docker"
-            },
-            "image": {
-              "type": "string",
-              "minLength": 1
-            },
             "limits": {
               "type": "object",
               "properties": {
@@ -1673,19 +1580,7 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "memory_mb": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "pids": {
-                  "type": "integer",
-                  "minimum": 1
-                },
                 "output_bytes": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "tmp_mb": {
                   "type": "integer",
                   "minimum": 1
                 }

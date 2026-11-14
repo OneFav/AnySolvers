@@ -31,6 +31,7 @@ handlers:
 files:
 - evidence.py
 - reports.py
+- wiki.py
 ---
 
 # 下一代算法迭代想法
@@ -58,3 +59,9 @@ python tools/run.py method-report-submit STUDY/001 --session r1-r001 --manifest 
 context 返回该方法源码、可信开发事实及 schema。正文为 `{"candidate":{"candidate_id":"...","title":"...","method":"...","limitations":"..."}}`；无方法时为 `{"candidate":null}`。title/method/limitations 分别最多 40/280/80 字符。用普通算法术语独立说明输入、步骤、分支、并列选择、终止条件和输出，不用“沿用基线”代替说明，不把笔记中的计划写成已实现功能。正文不填写分数，程序附上该候选所有已结束开发评测，包括失败、probe、合法性、覆盖和来源哈希；未测量明确标注。最终成绩不进入这些报告。
 
 报告封存在 `research/reports/<session>.json`，绑定本轮起点、最后 checkpoint、候选源码和开发证据，不可覆盖。本人下一轮准入和终局选择都检查报告完整性；其他研究员继续独立推进。程序检查身份和证据一致性，主会话负责方法文字是否忠于源码。
+
+## 可选的领域 wiki
+
+单次 context 带 `--wiki-query '关键词'` 时，当前方法从项目的 `dream/wiki/topics/` 读取相关发现和猜想，最多返回三段及其脚注。缺省调用不读取 wiki。摘录位于 `wiki_suggestions`，是选题参考；正式 iteration 的 evidence_ids 仍指向本批开发证据。
+
+标为「无证据猜想」的独立主题页仅按该标签返回，不携带实测证据。

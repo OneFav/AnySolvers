@@ -203,9 +203,8 @@ def read_plugin(path):
     return read_module(logical_path(path))
 
 
-def benchmark_environment(run, config, state, dataset):
+def _benchmark_owner(state, dataset):
     """Resolve the datasets-owned runtime, including shared batch challenge refs."""
-    from tools.module_runtime import invoke
     owner = dataset
     if dataset['manifest'].get('benchmark_file') == '@anchor':
         anchors = [record for record in state['deliveries']['dataset'].values()
@@ -214,11 +213,63 @@ def benchmark_environment(run, config, state, dataset):
         if len(anchors) != 1 or dataset['manifest']['purpose'] != 'challenge':
             raise ValueError('@anchor requires a batch challenge and one shared anchor')
         owner = anchors[0]
+    return owner
+
+
+def benchmark_environment(run, config, state, dataset):
+    from tools.module_runtime import invoke
+    owner = _benchmark_owner(state, dataset)
+    root = delivery_root(run, owner)
+    benchmark = read_json(contained(root, owner['manifest']['benchmark_file']))
+    override = state.get('scorer_overrides', {}).get(owner['files'][benchmark['evaluator_file']])
+    args = ()
+    if override:
+        path = contained(run, override['path'])
+        if sha(path) != override['sha']:
+            raise ValueError('batch scorer changed')
+        args = (path,)
     environment = invoke(config, 'datasets', 'load_environment',
-                         delivery_root(run, owner), owner['manifest'], owner['files'])
+                         root, owner['manifest'], owner['files'], *args)
     if environment.benchmark['task_id'] != config['task']['task_id']:
         raise ValueError('benchmark task mismatch')
     return environment
+
+
+def repair_scorer(run, cfg, state, path):
+    """Apply the replacement to environments using the anchor's original scorer."""
+    datasets = state['deliveries']['dataset']
+    anchor = next(d for d in datasets.values() if d['manifest']['purpose'] == 'anchor')
+    def original(record):
+        owner = _benchmark_owner(state, record)
+        benchmark = read_json(contained(delivery_root(run, owner), owner['manifest']['benchmark_file']))
+        return owner['files'][benchmark['evaluator_file']]
+    key = original(anchor)
+    data = path.read_bytes()
+    checksum = hashlib.sha256(data).hexdigest()
+    overrides = state.setdefault('scorer_overrides', {})
+    if checksum == overrides.get(key, {}).get('sha', key):
+        return
+    relative = 'research/repairs/' + checksum + '.py'
+    destination = contained(run, relative)
+    exists = destination.exists()
+    atomic_write(destination, data)
+    overrides[key] = dict(path=relative, sha=checksum)
+    affected = {did for did, record in datasets.items() if original(record) == key}
+    from tools.module_runtime import invoke
+    try:
+        for did in affected:
+            env = benchmark_environment(run, cfg, state, datasets[did])
+            if 'check_fixtures' in cfg['modules']['datasets']['handlers']:
+                invoke(cfg, 'datasets', 'check_fixtures', env)
+    except Exception:
+        if not exists:
+            destination.unlink()
+        raise
+    stale = set(state.get('stale_evaluations', []))
+    for eid, summary in state['evaluations'].items():
+        if read_json(contained(run, summary))['dataset_id'] in affected:
+            stale.add(eid)
+    state['stale_evaluations'] = sorted(stale)
 
 
 def event(run_dir, kind, **fields):
@@ -299,9 +350,10 @@ def validate_historical_config(cfg):
             raise ValueError('invalid historical configuration field: '+key)
 
 
-def load_run(run_id, read_only=False, replacing_slot=None):
+def load_run(run_id, read_only=False, replacing_slot=None, proposed=None):
     run = run_path(run_id)
-    document, state = read_yaml(run / 'run.yaml'), read_json(run / 'state.json')
+    document = read_yaml(run / 'run.yaml')
+    state = copy.deepcopy(proposed) if proposed is not None else read_json(run / 'state.json')
     historical = document.get('schema_version') in (2,3,4,6,7)
     if historical:
         if not read_only:
@@ -373,6 +425,15 @@ def load_run(run_id, read_only=False, replacing_slot=None):
         summary = read_json(summary_path)
         if sha(contained(run, summary['details_file'])) != seal['results_sha']:
             raise ValueError('sealed evaluation records changed: ' + eid)
+    for ref in state.get('scorer_overrides', {}).values():
+        if sha(contained(run, ref['path'])) != ref['sha']:
+            raise ValueError('batch scorer changed')
+    for versions in state.get('evaluation_history', {}).values():
+        for version in versions:
+            path = contained(run, version['summary'])
+            if (sha(path) != version['summary_sha'] or
+                    sha(contained(run, read_json(path)['details_file'])) != version['results_sha']):
+                raise ValueError('historical evaluation changed')
     return run, cfg, state
 
 

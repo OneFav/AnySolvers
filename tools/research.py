@@ -29,14 +29,18 @@ def main():
     p.add_argument('--evaluation')
     p.add_argument('--probe', action='store_true')
     p.add_argument('--details', action='store_true')
+    p.add_argument('--wiki-query', help='Include relevant domain wiki excerpts for this context call')
     p.add_argument('--case')
     a = p.parse_args()
     try:
         if a.operation != 'audit' and not a.session:
             p.error('--session is required')
+        if a.wiki_query is not None and a.operation != 'context':
+            p.error('--wiki-query only applies to context')
+        options = {'wiki_query': a.wiki_query} if a.wiki_query else {}
         value = command(a.run, a.operation, session_id=a.session, relative=a.file, request_id=a.id,
                         dataset_id=a.dataset, evaluation_id=a.evaluation, probe=a.probe,
-                        case_id=a.case, details=a.details)
+                        case_id=a.case, details=a.details, **options)
     except Exception as exc:
         p.exit(2, 'research: ' + str(exc) + '\n')
     print(json.dumps(value, ensure_ascii=False, allow_nan=False))

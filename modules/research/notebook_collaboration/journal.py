@@ -25,7 +25,7 @@ def intents(run, cfg, state):
         rid = c.identifier(record['record_id'])
         owners = [s for s in state['sessions'] if s['session_id'] == record['session_id']]
         if (path.name != rid + '.json' or len(owners) != 1
-                or value['config_sha'] != owners[0]['config_sha']
+                or value['config_sha'] not in [owners[0]['config_sha'], *owners[0].get('config_history', [])]
                 or value['record_sha'] != c.digest(record) or record['run_id'] != cfg['run_id']
                 or record['kind'] not in ('request', 'response', 'notebook', 'finding', 'reuse')):
             raise ValueError('tool intent identity or content changed')

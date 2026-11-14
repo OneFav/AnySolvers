@@ -1,27 +1,22 @@
-"""Opt-in real container check; four tiny jobs, no models or research runs."""
+"""Local Python process check; four tiny jobs, no models or research runs."""
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
-
-from tools import sandbox
-
 
 CHILD = r'''
 import json, sys, time
 from pathlib import Path
-from tools import sandbox
+from modules.evaluation.queued_python import executor
 queued = time.monotonic()
 lock = Path(sys.argv[1])
-with sandbox.evaluation_slot(lock, 3, deadline_monotonic=queued + 120) as slot:
+with executor.evaluation_slot(lock, 3, deadline_monotonic=queued + 120) as slot:
     admitted = time.monotonic()
-    result = sandbox.execute(
+    result = executor.execute(
         "import time\ndef solve(case):\n    time.sleep(2)\n    return case['value']\n",
-        {'value': 7}, sandbox.PINNED_IMAGE, sandbox.DEFAULT_LIMITS,
+        {'value': 7}, executor.DEFAULT_LIMITS,
         lambda solution, case: {'score': float(solution == case['value']), 'metrics': {}},
         lock, evaluation_slot_token=slot)
     finished = time.monotonic()
@@ -30,14 +25,10 @@ print(json.dumps({'queued': queued, 'admitted': admitted, 'finished': finished,
 '''
 
 
-@unittest.skipUnless(os.getenv('ANYSOLVERS_V2_DOCKER_TEST') == '1', 'real Docker opt-in')
-class ThreeSlotDockerTests(unittest.TestCase):
+class ThreeSlotProcessTests(unittest.TestCase):
     def test_four_real_jobs_use_three_slots_and_keep_case_limits(self):
-        facts = sandbox.preflight(sandbox.PINNED_IMAGE)
-        self.assertGreaterEqual(facts['cpus'], 4)
-        self.assertGreaterEqual(facts['memory_bytes'], 1024 * 1024**2)
         root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory(prefix='anysolvers-slots-', dir='/private/tmp') as directory:
+        with tempfile.TemporaryDirectory(prefix='anysolvers-slots-') as directory:
             jobs = [subprocess.Popen([sys.executable, '-B', '-c', CHILD,
                                       str(Path(directory)/'global.lock')], cwd=root,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -64,7 +55,6 @@ class ThreeSlotDockerTests(unittest.TestCase):
             for record in results:
                 result = record['result']
                 self.assertTrue(result['valid'], result)
-                self.assertTrue(result['isolation_verified'])
                 self.assertTrue(result['cleanup_confirmed'])
                 self.assertFalse(result['infrastructure_error'])
                 self.assertEqual(result['score'], 1.0)

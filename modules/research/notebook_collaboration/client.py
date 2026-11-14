@@ -63,7 +63,11 @@ def _deliver(run, cfg, state, sid, kind, relative):
 
 
 def direct(run_id, operation, session_id=None, relative=None, request_id=None,
-           dataset_id=None, evaluation_id=None, probe=False, case_id=None, details=False):
+           dataset_id=None, evaluation_id=None, probe=False, case_id=None, details=False, wiki_query=None):
+    if wiki_query is not None:
+        if operation != 'context':
+            raise ValueError('wiki query only applies to context')
+        return r.exchange(run_id, 'context', session_id=session_id, wiki_query=wiki_query)
     arguments = (run_id, operation, session_id, relative, request_id, dataset_id,
                  evaluation_id, probe, case_id, details)
     if operation != 'evaluate' or not request_id:
@@ -83,8 +87,6 @@ def _direct(run_id, operation, session_id=None, relative=None, request_id=None,
     if operation == 'audit':
         return r.exchange(run_id, 'audit')
     if operation == 'evaluate':
-        # A missing Docker socket permission is a caller-environment problem, not
-        # an attempted algorithm case. Only its trusted wait clock is recorded.
         with c.mutation(run, wait=True):
             _, cfg, state = c.load_run(run_id)
             records = r.audit(run, cfg, state)
@@ -97,11 +99,10 @@ def _direct(run_id, operation, session_id=None, relative=None, request_id=None,
                 dataset = state['deliveries']['dataset'].get(dataset_id)
                 if not dataset or dataset['manifest']['purpose'] not in ('anchor','challenge'):
                     raise ValueError('research requests permit development datasets only')
-                image = cfg['compute']['image']
                 preflight_token = r.begin_preflight(run, cfg, state, session_id)
         if needs_preflight:
             try:
-                invoke(cfg, 'evaluation', 'preflight', image)
+                invoke(cfg, 'evaluation', 'preflight')
             finally:
                 r.finish_preflight(run_id, session_id, preflight_token)
     # Registration and state updates are short transactions; never hold during solving.
@@ -129,6 +130,15 @@ def _direct(run_id, operation, session_id=None, relative=None, request_id=None,
                     raise ValueError('request candidate manifest changed')
                 response = records.get(request_id + '-response')
                 if response:
+                    previous = response['payload'].get('evaluation')
+                    if previous:
+                        eid = previous['evaluation_id']
+                        if eid in state.get('stale_evaluations', []):
+                            raise ValueError('evaluation requires rescoring')
+                        if eid in state.get('evaluation_history', {}):
+                            payload = dict(response['payload'], evaluation=r._development(run, cfg, state, eid),
+                                           cached=True, summary_file=state['evaluations'][eid])
+                            return dict(response, payload=payload)
                     return response
             else:
                 dataset = state['deliveries']['dataset'].get(dataset_id)

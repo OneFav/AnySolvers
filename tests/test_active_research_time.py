@@ -9,8 +9,8 @@ import test_collaboration as fixtures
 import test_contracts as h
 from tools import common as c, research, run
 from modules.research.notebook_collaboration import runtime, sessions
-from modules.evaluation.queued_sandbox import sandbox
-from modules.evaluation.queued_sandbox.measure import EvaluationNotStarted
+from modules.evaluation.queued_python import executor, ssh
+from modules.evaluation.queued_python.measure import EvaluationNotStarted
 
 
 class FakeClock:
@@ -90,13 +90,13 @@ class ActiveResearchTimeTests(unittest.TestCase):
             result.update(valid=False, score=None, infrastructure_error=True)
             return result
 
-        with patch.object(sandbox, 'execute', side_effect=failed):
+        with patch.object(executor, 'execute', side_effect=failed):
             response = research.command(self.run_id, 'process', request_id='req1')
         self.assertEqual(response['payload']['evaluation']['status'], 'failed')
         self.assertEqual(self.timing()['active_research_s'], 17)
         self.assertEqual(self.timing()['evaluation_wait_s'], 3100)
         self.clock.advance(8)
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('must not replay')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('must not replay')):
             duplicate = research.command(self.run_id, 'process', request_id='req1')
         self.assertEqual(duplicate, response)
         self.assertEqual(self.timing()['active_research_s'], 25)
@@ -111,7 +111,7 @@ class ActiveResearchTimeTests(unittest.TestCase):
         self.clock.advance(2399)
         self.request()
         self.clock.advance(3000)
-        with patch.object(sandbox, 'execute', side_effect=self.fake):
+        with patch.object(executor, 'execute', side_effect=self.fake):
             research.command(self.run_id, 'process', request_id='req1')
         self.clock.advance(1)
         self.assertTrue(self.timing()['exhausted'])
@@ -119,7 +119,7 @@ class ActiveResearchTimeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'admission deadline'):
             self.candidate('c2')
         manifest, _ = self.write_candidate('c3', session_id=self.session['session_id'])
-        with patch.object(sandbox, 'preflight') as preflight:
+        with patch.object(ssh, 'preflight') as preflight:
             with self.assertRaisesRegex(ValueError, 'admission deadline'):
                 research.command(self.run_id, 'evaluate', session_id=self.session['session_id'],
                     relative=manifest, request_id='too-late', dataset_id='anchor-a')
@@ -162,11 +162,11 @@ class ActiveResearchTimeTests(unittest.TestCase):
         self.request()
         _, cfg, _ = self.snapshot()
         # Simulate interruption between evaluator commit and response commit.
-        with patch.object(sandbox, 'execute', side_effect=self.fake):
+        with patch.object(executor, 'execute', side_effect=self.fake):
             runtime.invoke(cfg, 'evaluation', 'evaluate', self.run_id, 'c1', 'anchor-a', 'eval1',
                            research_session=self.session['session_id'])
         self.clock.advance(25000)
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('must not replay')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('must not replay')):
             response = research.command(self.run_id, 'process', request_id='req1')
         self.assertTrue(response['payload']['cached'])
         self.assertEqual(response['payload']['evaluation']['evaluation_id'], 'eval1')
@@ -179,7 +179,7 @@ class ActiveResearchTimeTests(unittest.TestCase):
         self.clock.advance(9)
         self.request()
         self.clock.advance(25000)
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('must not start')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('must not start')):
             response = research.command(self.run_id, 'process', request_id='req1')
         self.assertEqual(response['payload']['status'], 'not_started')
         self.assertIsNone(response['payload']['evaluation'])
@@ -213,11 +213,11 @@ class ActiveResearchTimeTests(unittest.TestCase):
         self.clock.advance(11)
         manifest, _ = self.write_candidate('c1', session_id=self.session['session_id'])
 
-        def denied(image):
+        def denied(destination):
             self.clock.advance(3000)
             raise RuntimeError('mock environment denied')
 
-        with patch.object(sandbox, 'preflight', side_effect=denied), patch.object(sandbox, 'execute') as execute:
+        with patch.object(ssh, 'preflight', side_effect=denied), patch.object(executor, 'execute') as execute:
             with self.assertRaisesRegex(RuntimeError, 'mock environment denied'):
                 research.command(self.run_id, 'evaluate', session_id=self.session['session_id'],
                     relative=manifest, request_id='denied', dataset_id='anchor-a')

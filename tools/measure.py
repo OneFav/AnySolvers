@@ -16,7 +16,7 @@ from tools.module_runtime import invoke
 def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_dir=None):
     _, cfg, _ = common.load_run(run_id)
     if 'modules' not in cfg:  # Isolated measurement-unit fixtures only.
-        from modules.evaluation.queued_sandbox import measure as _implementation
+        from modules.evaluation.queued_python import measure as _implementation
         return _implementation.evaluate(run_id,candidate_id,dataset_id,evaluation_id,probe,task_dir)
     return invoke(cfg,'evaluation','evaluate',run_id,candidate_id,dataset_id,evaluation_id,probe,task_dir)
 
@@ -24,7 +24,7 @@ def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_
 def details(run_id, evaluation_id, case_id=None):
     _, cfg, _ = common.load_run(run_id)
     if 'modules' not in cfg:
-        from modules.evaluation.queued_sandbox import measure as _implementation
+        from modules.evaluation.queued_python import measure as _implementation
         return _implementation.details(run_id,evaluation_id,case_id)
     return invoke(cfg,'evaluation','details',run_id,evaluation_id,case_id)
 
@@ -33,7 +33,7 @@ def __getattr__(name):
     # Explicit legacy helper access only; normal dispatch never imports the default.
     if name.startswith('__'):
         raise AttributeError(name)
-    from modules.evaluation.queued_sandbox import measure as implementation
+    from modules.evaluation.queued_python import measure as implementation
     return getattr(implementation,name)
 
 

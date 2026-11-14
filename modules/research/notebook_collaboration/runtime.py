@@ -272,7 +272,7 @@ def _draft(run, cfg, kind, relative, sid):
     return data
 
 
-def exchange(run_id, operation, session_id=None, relative=None, request_id=None):
+def exchange(run_id, operation, session_id=None, relative=None, request_id=None, wiki_query=None):
     if operation == 'process':
         return process(run_id, request_id)
     run = c.run_path(run_id)
@@ -285,7 +285,8 @@ def exchange(run_id, operation, session_id=None, relative=None, request_id=None)
         session = active(state, session_id)
         if operation == 'context':
             # Private notes stay with their author. Public findings are same-batch only.
-            evidence = invoke(cfg, 'selections', 'context', run, cfg, state, session['actor'])
+            options = {'wiki_query': wiki_query} if wiki_query else {}
+            evidence = invoke(cfg, 'selections', 'context', run, cfg, state, session['actor'], **options)
             notes = [r for r in all_records.values() if r['kind'] == 'notebook'
                      and r['payload']['actor'] == session['actor']]
             return dict(session=session, latest_notebook=notes[-1] if notes else None,

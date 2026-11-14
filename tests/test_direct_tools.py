@@ -1,4 +1,4 @@
-"""Researcher tools run deterministically with mocked sandbox execution only."""
+"""Researcher tools run deterministically with mocked executor execution only."""
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import unittest
@@ -7,7 +7,7 @@ from unittest.mock import patch
 import test_collaboration as fixtures
 from test_contracts import checkpoint_session
 from tools import research, common as c, run, measure
-from modules.evaluation.queued_sandbox import sandbox
+from modules.evaluation.queued_python import executor, ssh
 
 
 class DirectToolsTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class DirectToolsTests(unittest.TestCase):
 
     def setUp(self):
         fixtures.CollaborationTests.setUp(self)
-        preflight = patch.object(sandbox, 'preflight', return_value={'image_id': 'mocked-image'})
+        preflight = patch.object(ssh, 'preflight', return_value=None)
         self.preflight = preflight.start()
         self.addCleanup(preflight.stop)
 
@@ -35,7 +35,7 @@ class DirectToolsTests(unittest.TestCase):
         manifest, source = self.write_candidate('c1', source=
             f"from pathlib import Path\nPath({str(marker)!r}).write_text('bad')\nraise RuntimeError('never import')\n",
             session_id=self.session['session_id'])
-        with patch.object(sandbox, 'execute', side_effect=self.fake) as execute:
+        with patch.object(executor, 'execute', side_effect=self.fake) as execute:
             response = self.evaluate(manifest)
         execute.assert_called_once()
         self.assertFalse(marker.exists())
@@ -43,8 +43,8 @@ class DirectToolsTests(unittest.TestCase):
         self.assertEqual(response['payload']['evaluation']['score'], 1.0)
         record = self.snapshot()[2]['deliveries']['candidate']['c1']
         self.assertEqual(record['files'][source], c.sha(self.snapshot()[0] / source))
-        with patch.object(sandbox, 'execute', side_effect=AssertionError('no replay')), \
-                patch.object(sandbox, 'preflight', side_effect=AssertionError('completed request needs no preflight')):
+        with patch.object(executor, 'execute', side_effect=AssertionError('no replay')), \
+                patch.object(ssh, 'preflight', side_effect=AssertionError('completed request needs no preflight')):
             self.assertEqual(self.evaluate(manifest), response)
         result = research.command(self.run_id, 'result', session_id=self.session['session_id'], request_id='direct1')
         self.assertEqual(result['summary']['score'], 1.0)
@@ -52,6 +52,17 @@ class DirectToolsTests(unittest.TestCase):
                                evaluation_id='direct1-eval', details=True, case_id='case-a')
         self.assertEqual(len(detailed['records']), 2)
         self.assertEqual({row['case_id'] for row in detailed['records']}, {'case-a'})
+
+    def test_debug_draft_then_measure_through_researcher_entrypoint(self):
+        from runpy import run_path
+        manifest, source = self.write_candidate('debugged', session_id=self.session['session_id'])
+        directory, _, _ = self.snapshot()
+        solve = run_path(str(directory / source))['solve']
+        self.assertIn('order', solve(self.example))
+        self.assertEqual(self.snapshot()[2]['evaluations'], {})
+        response = self.evaluate(manifest)
+        self.assertTrue(response['payload']['evaluation']['all_valid'])
+        self.assertEqual(len(self.snapshot()[2]['evaluations']), 1)
 
     def test_preflight_denial_leaves_candidate_request_evaluation_and_budget_untouched(self):
         manifest, _ = self.write_candidate('c1', session_id=self.session['session_id'])
@@ -61,18 +72,18 @@ class DirectToolsTests(unittest.TestCase):
         remaining_before = research.command(self.run_id, 'context',
                                        session_id=self.session['session_id'])['remaining_evaluations']
 
-        def denied(image):
-            self.assertEqual(image, cfg['compute']['image'])
+        def denied(destination):
+            self.assertEqual(destination, {'mode': 'local'})
             # Preflight must not retain the metadata lock during environment checks.
             with c.mutation(directory):
                 pass
-            raise RuntimeError('Docker socket permission denied')
+            raise RuntimeError('SSH connection denied')
 
-        with patch.object(sandbox, 'preflight', side_effect=denied) as preflight, \
-                patch.object(sandbox, 'execute') as execute:
-            with self.assertRaisesRegex(RuntimeError, 'Docker socket permission denied'):
+        with patch.object(ssh, 'preflight', side_effect=denied) as preflight, \
+                patch.object(executor, 'execute') as execute:
+            with self.assertRaisesRegex(RuntimeError, 'SSH connection denied'):
                 self.evaluate(manifest, 'environment-denied')
-        preflight.assert_called_once_with(cfg['compute']['image'])
+        preflight.assert_called_once_with({'mode': 'local'})
         execute.assert_not_called()
         after = self.snapshot()[2]
         waits = after['sessions'][0]['preflight_waits']
@@ -106,9 +117,9 @@ class DirectToolsTests(unittest.TestCase):
                 self.draft('share', payload, other['session_id'])
             return self.fake()
 
-        with patch.object(sandbox, 'execute', side_effect=execute) as sandbox_execute:
+        with patch.object(executor, 'execute', side_effect=execute) as execute_mock:
             response = self.evaluate(manifest, 'collision')
-        sandbox_execute.assert_called_once()
+        execute_mock.assert_called_once()
         self.assertEqual(response['kind'], 'response')
         self.assertEqual(response['session_id'], self.session['session_id'])
         self.assertEqual(response['payload']['request_id'], 'collision')
@@ -121,7 +132,7 @@ class DirectToolsTests(unittest.TestCase):
 
     def test_audit_rejects_response_with_wrong_request_or_session_linkage(self):
         manifest, _ = self.write_candidate('c1', session_id=self.session['session_id'])
-        with patch.object(sandbox, 'execute', side_effect=self.fake):
+        with patch.object(executor, 'execute', side_effect=self.fake):
             self.evaluate(manifest, 'linked')
         directory, _, state = self.snapshot()
         reference = state['extensions']['research_exchange']['linked-response']
@@ -139,7 +150,7 @@ class DirectToolsTests(unittest.TestCase):
 
     def test_evaluate_denies_final_before_registering_or_executing_candidate(self):
         manifest, _ = self.write_candidate('c1', session_id=self.session['session_id'])
-        with patch.object(sandbox, 'execute') as execute, self.assertRaisesRegex(ValueError, 'development'):
+        with patch.object(executor, 'execute') as execute, self.assertRaisesRegex(ValueError, 'development'):
             research.command(self.run_id, 'evaluate', session_id=self.session['session_id'],
                         relative=manifest, request_id='final-request', dataset_id='final-a')
         execute.assert_not_called()
@@ -148,7 +159,7 @@ class DirectToolsTests(unittest.TestCase):
 
     def test_result_and_context_keep_private_development_scoped_until_published(self):
         manifest, _ = self.write_candidate('c1', session_id=self.session['session_id'])
-        with patch.object(sandbox, 'execute', side_effect=self.fake):
+        with patch.object(executor, 'execute', side_effect=self.fake):
             self.evaluate(manifest, 'req1', evaluation_id='eval1')
         other = self.command('begin-session', actor='r2', idea='idea-a')
         for kw in ({'request_id': 'req1'}, {'evaluation_id': 'eval1'}):
@@ -195,7 +206,7 @@ class DirectToolsTests(unittest.TestCase):
 
     def test_final_result_never_enters_researcher_tools_even_after_session_end(self):
         manifest, _ = self.write_candidate('c1', session_id=self.session['session_id'])
-        with patch.object(sandbox, 'execute', side_effect=self.fake):
+        with patch.object(executor, 'execute', side_effect=self.fake):
             self.evaluate(manifest)
             checkpoint_session(self, 'r1')
             self.command('end-session', actor='r1', status='completed', native_id=None)
@@ -234,7 +245,7 @@ class DirectToolsTests(unittest.TestCase):
             except ValueError as exc:
                 return str(exc)
 
-        with patch.object(sandbox, 'execute') as execute, ThreadPoolExecutor(max_workers=2) as workers:
+        with patch.object(executor, 'execute') as execute, ThreadPoolExecutor(max_workers=2) as workers:
             results = list(workers.map(reserve, drafts))
         execute.assert_not_called()
         self.assertEqual(sum(isinstance(value, dict) for value in results), 1)
@@ -255,7 +266,7 @@ class DirectToolsTests(unittest.TestCase):
                 raise AssertionError('test did not release measurement')
             return self.fake()
 
-        with patch.object(sandbox, 'execute', side_effect=execute) as sandbox_execute:
+        with patch.object(executor, 'execute', side_effect=execute) as execute_mock:
             with ThreadPoolExecutor(max_workers=2) as workers:
                 first = workers.submit(self.evaluate, manifest, 'same-request')
                 try:
@@ -264,7 +275,7 @@ class DirectToolsTests(unittest.TestCase):
                 finally:
                     release.set()
                 self.assertEqual(first.result(10), duplicate.result(10))
-        sandbox_execute.assert_called_once()
+        execute_mock.assert_called_once()
         self.assertEqual(len(self.snapshot()[2]['evaluations']), 1)
         self.assertEqual(research.command(self.run_id, 'audit')['pending_requests'], [])
 
@@ -293,7 +304,7 @@ class DirectToolsTests(unittest.TestCase):
                 with guard:
                     active -= 1
 
-        with patch.object(sandbox, 'execute', side_effect=execute) as sandbox_execute:
+        with patch.object(executor, 'execute', side_effect=execute) as execute_mock:
             with ThreadPoolExecutor(max_workers=2) as workers:
                 one = workers.submit(self.evaluate, first_manifest, 'queue1')
                 try:
@@ -304,7 +315,7 @@ class DirectToolsTests(unittest.TestCase):
                     release.set()
                 results = [one.result(10), two.result(10)]
         self.assertEqual(peak, 1)
-        self.assertEqual(sandbox_execute.call_count, 2)
+        self.assertEqual(execute_mock.call_count, 2)
         self.assertEqual({r['payload']['evaluation']['evaluation_id'] for r in results},
                          {'queue1-eval', 'queue2-eval'})
         self.assertEqual(research.command(self.run_id, 'audit')['pending_requests'], [])

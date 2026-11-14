@@ -1,4 +1,4 @@
-"""File-contract checks in disposable roots; never execute candidates or Docker."""
+"""File-contract checks in disposable roots; never execute candidates."""
 
 import argparse
 import copy
@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+import os
 from unittest.mock import patch
 
 import yaml
@@ -21,8 +22,8 @@ from tools import common, run, study, research
 METHODS = {
     'task': 'problem_spec', 'datasets': 'stratified_holdout',
     'ideas': 'diverse_hypotheses', 'research': 'notebook_collaboration',
-    'evaluation': 'queued_sandbox', 'selections': 'evidence_iteration',
-    'final': 'frozen_holdout', 'visualization': 'evidence_charts',
+    'evaluation': 'queued_python', 'selections': 'evidence_iteration',
+    'final': 'dream', 'visualization': 'evidence_charts',
 }
 
 
@@ -102,6 +103,9 @@ def checkpoint_session(test, actor, next_iteration_id=None):
 
 class ContractTests(unittest.TestCase):
     def setUp(self):
+        location = patch.dict(os.environ, ANYSOLVERS_SSH_HOST="")
+        location.start()
+        self.addCleanup(location.stop)
         temporary = tempfile.TemporaryDirectory(prefix="anysolvers-v2-contract-", dir="/private/tmp")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -246,7 +250,7 @@ class ContractTests(unittest.TestCase):
         (self.root / config["modules"]["datasets"]["path"]).write_text("unbound replacement", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "module file changed"):
             self.command("plugin", slot="datasets")
-        with self.assertRaisesRegex(ValueError, "run exists"):
+        with self.assertRaisesRegex(ValueError, "frontmatter"):
             run.init(self.run_id, "configs/smoke.yaml")
 
     def test_duplicate_json_and_yaml_keys_are_rejected(self):

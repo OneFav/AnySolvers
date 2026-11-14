@@ -53,6 +53,8 @@ def _facts(run, cfg, state, sid):
     checkpoint, cid, rec = _selected(run, state, sid)
     evaluations = []
     for eid in sorted(state['evaluations']):
+        if eid in state.get('stale_evaluations', []):
+            continue
         summary = base._summary(run, state, eid)
         # Terminal results must never enter or change research reports.
         if not base._development(state, summary) or cid is None or summary['candidate_id'] != cid:
@@ -90,7 +92,14 @@ def report_audit(run, cfg, state):
             raise ValueError('sealed method report changed')
         data = c.read_json(path)
         c.validate_schema(output_schema(cfg['modules']['selections'], 'method_report'), data['prose'])
-        if data['facts'] != _facts(run, cfg, state, sid):
+        # Verify the report against the versions available when it was sealed.
+        recorded = (data['facts']['candidate'] or {}).get('evaluations', [])
+        snapshot = dict(state, evaluations={}, evaluation_hashes={}, stale_evaluations=[])
+        for result in recorded:
+            eid = result['evaluation_id']
+            snapshot['evaluations'][eid] = result['summary_path']
+            snapshot['evaluation_hashes'][eid] = result['evidence_hashes']
+        if data['facts'] != _facts(run, cfg, snapshot, sid):
             raise ValueError('method report evidence or session binding changed')
         _complete(run, state, sid, data['prose'])
     return dict(reports=len(_refs(state)))

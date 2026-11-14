@@ -21,6 +21,7 @@ handlers:
   validate_delivery: package.py
   inventory: package.py
   load_environment: package.py
+  check_fixtures: package.py
   recommend_compute: resources.py
 files: []
 defaults:
@@ -102,7 +103,7 @@ score_episode(private_state, trace, case)  # -> {score, metrics}
 1. 明确静态/交互协议、观测边界、原始来源、分层与独立最终集。源数据有官方划分时优先保留其语义；默认生成方法不得依据候选成绩挑选 final。
 2. 编写可信环境与基线。fixtures.json 包含 `schema_version:1,valid,invalid_inputs`；静态另外含非空 invalid_solutions，交互另外含非空 invalid_actions。静态 valid 项为 `{case,solution,expected}`，交互为 `{case,actions,expected}`，expected 为精确 `{score,metrics}`（可另含 trace 详情）。交互有效序列必须自然结束；非法动作序列应由环境拒绝。至少提供一个有效、一个非法输入及一个非法解/动作检查。检查项可带 name；非法输入可写为 `{name,case,error_contains}`，非法解/动作可带 error_contains 核验具体错误。
 3. 实际检查输入合法性、ID与输入内容唯一、原始数据转换一致、fixture结果、案例容量、final/开发输入无重叠。交互任务另外提供隐藏未来事件隔离检查和物理/计分 sanity checks；通用回调检查本身不能证明整个模型的现实性。
-4. 共享准备调用 `study-deliver STUDY dataset datasets/DATASET_ID/manifest.json --module datasets`。本批新增 challenge 调用 `deliver STUDY/NNN dataset research/datasets/DATASET_ID/manifest.json --module datasets`。程序不执行候选或基线；基线性能检查通过 evaluation 沙箱计入预算。
+4. 共享准备调用 `study-deliver STUDY dataset datasets/DATASET_ID/manifest.json --module datasets`。本批新增 challenge 调用 `deliver STUDY/NNN dataset research/datasets/DATASET_ID/manifest.json --module datasets`。程序不执行候选或基线；基线性能检查通过 evaluation 评测进程计入预算。
 5. 登记各集合后、封存前调用 `tools/plan_resources.py STUDY --config configs/STUDY.yaml`。本模块的 `recommend_compute` 根据静态/交互协议给单案时间、CPU、内存起点，并按最大集合数量与 evaluation 提供的每案启动/清理预留量计算整次评测时限。默认三个槽位；需同时检查本机余量及其他任务。该命令只生成配置建议，不执行算法、不写配置，也不会解析最终实例内容。
 6. 主会话结合任务复杂度和已获授权的公开基线实测决定最终预算，向用户说明并写回基础配置，再封存。可传 `--observed-wall-s`、`--observed-cpu-s`、`--observed-memory-mb` 与 `--measurement-note` 提供实测值；程序只按裕量计算，不独立核验其真实性。未实测时明确为启发式起点，不能声称已校准。交互的动作时限/步数仍由协议单独定义；单案时限不按槽数缩减，排队不计入整次评测时限。后续新批次若引入更大集合，重新匹配整次时限。
 7. 交付完成后，后续 research/evaluation 只引用这套环境和实例。默认摘要返回分数、合法率与文件引用，具体轨迹按需读取。

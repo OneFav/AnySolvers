@@ -1,4 +1,4 @@
-"""Measurement bookkeeping tests with a mocked sandbox; never start Docker."""
+"""Measurement bookkeeping tests with a mocked executor."""
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import datetime as dt
@@ -10,15 +10,20 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+import os
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools import common, measure, sandbox
-from modules.evaluation.queued_sandbox import measure as implementation
+from tools import common, measure
+from modules.evaluation.queued_python import executor
+from modules.evaluation.queued_python import measure as implementation
 
 
 class MeasurementTests(unittest.TestCase):
     def setUp(self):
+        location = patch.dict(os.environ, ANYSOLVERS_SSH_HOST="")
+        location.start()
+        self.addCleanup(location.stop)
         temporary = tempfile.TemporaryDirectory(prefix="anysolvers-v2-measure-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
@@ -37,7 +42,7 @@ class MeasurementTests(unittest.TestCase):
         self.state = {"deliveries": {"candidate": {"candidate": candidate}, "dataset": {"dataset": dataset}},
                       "evaluations": {}, "selection": None}
         self.config = {"created_at": common.utc(), "task": {"task_id": "test", "files": {}},
-                       "compute": {"image": sandbox.PINNED_IMAGE, "limits": dict(sandbox.DEFAULT_LIMITS)},
+                       "compute": {"limits": dict(executor.DEFAULT_LIMITS)},
                        "budgets": {"run_wall_s": 3600, "evaluation_calls": 2, "probe_calls": 1,
                                    "max_cases_per_dataset": 12}, "final": {"authorized": True}}
         trusted = SimpleNamespace(validate_input=lambda case: None, score=lambda solution, case: {"score": 0},
@@ -63,7 +68,7 @@ class MeasurementTests(unittest.TestCase):
         self.environment.baseline_path = source
         self.environment.baseline_sha = common.sha(source)
         source.write_text('changed after environment loading')
-        with patch.object(sandbox, 'execute') as execute:
+        with patch.object(executor, 'execute') as execute:
             with self.assertRaisesRegex(ValueError, 'sealed file changed'):
                 measure.evaluate('test', 'baseline', 'dataset', 'changed-baseline')
             execute.assert_not_called()
@@ -71,7 +76,7 @@ class MeasurementTests(unittest.TestCase):
 
     def test_episode_budget_mismatch_rejected_before_attempt(self):
         self.environment.protocol = {'kind': 'episode', 'max_steps': 2, 'action_wall_s': 999}
-        with patch.object(sandbox, 'execute_episode') as execute:
+        with patch.object(executor, 'execute_episode') as execute:
             with self.assertRaisesRegex(ValueError, 'action budget'):
                 self.run_evaluation()
             execute.assert_not_called()
@@ -79,12 +84,12 @@ class MeasurementTests(unittest.TestCase):
 
     def test_input_validator_cannot_modify_input_sent_to_candidate(self):
         self.environment.validate_input = lambda case: case.update(value=999)
-        with patch.object(sandbox, 'execute', return_value=self.valid()) as execute:
+        with patch.object(executor, 'execute', return_value=self.valid()) as execute:
             self.run_evaluation()
         self.assertEqual([call.args[1]['value'] for call in execute.call_args_list], [2, 4])
 
     def test_success_cached_without_budget_or_execution(self):
-        with patch.object(sandbox, "execute", side_effect=[self.valid(2), self.valid(4)]) as execute:
+        with patch.object(executor, "execute", side_effect=[self.valid(2), self.valid(4)]) as execute:
             summary = self.run_evaluation()
             cached = self.run_evaluation()
             alias = self.run_evaluation("new-id")
@@ -103,9 +108,9 @@ class MeasurementTests(unittest.TestCase):
         self.assertEqual(len(measure.details("test", "eval", "first")["records"]), 2)
 
     def test_incomplete_or_different_request_never_replayed(self):
-        with patch.object(sandbox, "execute", return_value=self.valid()):
+        with patch.object(executor, "execute", return_value=self.valid()):
             summary = self.run_evaluation()
-        with patch.object(sandbox, "execute") as execute:
+        with patch.object(executor, "execute") as execute:
             self.config["compute"]["limits"]["cpu_s"] += 1
             with self.assertRaisesRegex(ValueError, "different request"):
                 self.run_evaluation()
@@ -116,8 +121,8 @@ class MeasurementTests(unittest.TestCase):
                 self.run_evaluation()
             execute.assert_not_called()
 
-    def test_caps_and_deadline_reject_before_sandbox(self):
-        with patch.object(sandbox, "execute", return_value=self.valid()) as execute:
+    def test_caps_and_deadline_reject_before_execution(self):
+        with patch.object(executor, "execute", return_value=self.valid()) as execute:
             self.run_evaluation("probe", probe=True)
             self.config["compute"]["limits"]["cpu_s"] += 1
             with self.assertRaisesRegex(ValueError, "probe_calls"):
@@ -129,14 +134,14 @@ class MeasurementTests(unittest.TestCase):
             self.assertEqual(execute.call_count, 4)
         self.state["evaluations"] = {}
         self.config["created_at"] = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2)).isoformat()
-        with patch.object(sandbox, "execute") as execute:
+        with patch.object(executor, "execute") as execute:
             with self.assertRaisesRegex(ValueError, "run_wall_s"):
                 self.run_evaluation("late")
             execute.assert_not_called()
 
     def test_unknown_cleanup_stops_and_blocks_further_execution(self):
         failed = {**self.valid(), "infrastructure_error": True, "cleanup_confirmed": False, "error": "cleanup"}
-        with patch.object(sandbox, "execute", return_value=failed) as execute:
+        with patch.object(executor, "execute", return_value=failed) as execute:
             summary = self.run_evaluation()
             with self.assertRaisesRegex(ValueError, "manual reconciliation"):
                 self.run_evaluation()
@@ -147,7 +152,7 @@ class MeasurementTests(unittest.TestCase):
 
     def test_one_invalid_case_prevents_mean(self):
         invalid = {**self.valid(), "valid": False, "score": None}
-        with patch.object(sandbox, "execute", side_effect=[self.valid(), invalid]):
+        with patch.object(executor, "execute", side_effect=[self.valid(), invalid]):
             summary = self.run_evaluation()
         self.assertEqual(summary["status"], "completed")
         self.assertEqual(summary["valid_cases"], 1)
@@ -155,7 +160,7 @@ class MeasurementTests(unittest.TestCase):
         self.assertIsNone(summary["score"])
 
     def test_unexpected_helper_error_has_unknown_timing(self):
-        with patch.object(sandbox, "execute", side_effect=RuntimeError("unexpected")):
+        with patch.object(executor, "execute", side_effect=RuntimeError("unexpected")):
             summary = self.run_evaluation()
         self.assertIsNone(summary["wall_s"])
         self.assertIsNone(summary["queue_wait_s"])
@@ -164,7 +169,7 @@ class MeasurementTests(unittest.TestCase):
         self.assertIn("eval", self.state["evaluation_hashes"])
 
     def test_changed_summary_or_journal_blocks_cache(self):
-        with patch.object(sandbox, "execute", return_value=self.valid()):
+        with patch.object(executor, "execute", return_value=self.valid()):
             self.run_evaluation()
         path = self.run / self.state["evaluations"]["eval"]
         original = path.read_bytes()
@@ -180,7 +185,7 @@ class MeasurementTests(unittest.TestCase):
 
     def test_final_gate_and_mutation_lock(self):
         self.state["deliveries"]["dataset"]["dataset"]["manifest"]["purpose"] = "final"
-        with patch.object(sandbox, "execute") as execute:
+        with patch.object(executor, "execute") as execute:
             with self.assertRaisesRegex(ValueError, "frozen selection"):
                 self.run_evaluation()
             self.state["selection"] = {"candidate_id": "other", "source_sha": "wrong"}
@@ -188,7 +193,7 @@ class MeasurementTests(unittest.TestCase):
                 self.run_evaluation()
             execute.assert_not_called()
         self.state["deliveries"]["dataset"]["dataset"]["manifest"]["purpose"] = "anchor"
-        with common.mutation(self.run), patch.object(sandbox, "execute") as execute:
+        with common.mutation(self.run), patch.object(executor, "execute") as execute:
             with self.assertRaisesRegex(ValueError, "active"):
                 self.run_evaluation()
             execute.assert_not_called()
@@ -211,7 +216,7 @@ class MeasurementTests(unittest.TestCase):
         active, peak, first_entries = 0, 0, []
         def execute(*args, **kwargs):
             nonlocal active, peak
-            kwargs['evaluation_slot_token'].check(args[5])
+            kwargs['evaluation_slot_token'].check(args[4])
             with guard:
                 active += 1
                 peak = max(peak, active)
@@ -227,7 +232,7 @@ class MeasurementTests(unittest.TestCase):
                 with guard:
                     active -= 1
         with patch.object(implementation, '_research_admission'), \
-             patch.object(sandbox, 'execute', side_effect=execute), ThreadPoolExecutor(4) as pool:
+             patch.object(executor, 'execute', side_effect=execute), ThreadPoolExecutor(4) as pool:
             futures = [pool.submit(self._parallel_evaluate, i) for i in range(4)]
             try:
                 self.assertTrue(entered.wait(3))
@@ -251,7 +256,7 @@ class MeasurementTests(unittest.TestCase):
             self.assertTrue(release.wait(3))
             return self.valid()
         with patch.object(implementation, '_research_admission'), \
-             patch.object(sandbox, 'execute', side_effect=execute) as mocked, ThreadPoolExecutor(2) as pool:
+             patch.object(executor, 'execute', side_effect=execute) as mocked, ThreadPoolExecutor(2) as pool:
             first = pool.submit(implementation.evaluate, 'test', 'candidate', 'dataset', 'first-eval',
                                 research_session='session')
             self.assertTrue(entered.wait(3))
@@ -269,22 +274,22 @@ class MeasurementTests(unittest.TestCase):
 
     def test_null_limits_allow_multiple_evaluations_and_case_count(self):
         self.config['budgets'].update(evaluation_calls=None, max_cases_per_dataset=None)
-        with patch.object(sandbox, 'execute', return_value=self.valid()) as execute:
+        with patch.object(executor, 'execute', return_value=self.valid()) as execute:
             for index in range(4):
                 self.config['compute']['limits']['cpu_s'] += 1
                 self.assertTrue(self.run_evaluation('unlimited-' + str(index))['all_valid'])
         self.assertEqual(execute.call_count, 8)
 
     def test_evaluation_deadline_stops_before_shrinking_next_case_budget(self):
-        self.config['compute']['evaluation_wall_s'] = 81
+        self.config['compute']['evaluation_wall_s'] = 12
         original_limits = dict(self.config['compute']['limits'])
         clock = [1000.0]
         def execute(*args, **kwargs):
-            self.assertEqual(args[3], original_limits)
+            self.assertEqual(args[2], original_limits)
             clock[0] += 2.0
             return self.valid()
         with patch.object(implementation.time, 'monotonic', side_effect=lambda: clock[0]), \
-             patch.object(sandbox, 'execute', side_effect=execute) as mocked:
+             patch.object(executor, 'execute', side_effect=execute) as mocked:
             result = self.run_evaluation()
         self.assertEqual(mocked.call_count, 1)
         self.assertEqual(result['error'], 'evaluation_wall_budget')

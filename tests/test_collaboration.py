@@ -6,7 +6,7 @@ import unittest
 import yaml
 import test_contracts as h
 from tools import common as c, run, research, measure
-from modules.evaluation.queued_sandbox import sandbox
+from modules.evaluation.queued_python import executor
 
 
 class CollaborationTests(unittest.TestCase):
@@ -46,7 +46,7 @@ class CollaborationTests(unittest.TestCase):
 
     def evaluate(self,cid='c1',rid='req1',eid='eval1'):
         self.request(cid,rid,eid)
-        with patch.object(sandbox,'execute',side_effect=self.fake):
+        with patch.object(executor,'execute',side_effect=self.fake):
             return research.command(self.run_id,'process',request_id=rid)
 
     def test_multiple_candidates_and_evaluations_stay_in_one_session(self):
@@ -68,7 +68,7 @@ class CollaborationTests(unittest.TestCase):
 
     def test_response_idempotent_no_replay(self):
         self.candidate();first=self.evaluate()
-        with patch.object(sandbox,'execute',side_effect=AssertionError('must not execute')):
+        with patch.object(executor,'execute',side_effect=AssertionError('must not execute')):
             self.assertEqual(first,research.command(self.run_id,'process',request_id='req1'))
 
     def test_distinct_actors_cannot_reserve_same_evaluation_id(self):
@@ -100,7 +100,7 @@ class CollaborationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'measurement is active'):
                 measure.evaluate(self.run_id,'c1','anchor-a','other')
             return self.fake()
-        with patch.object(sandbox,'execute',side_effect=during):
+        with patch.object(executor,'execute',side_effect=during):
             result=measure.evaluate(self.run_id,'c1','anchor-a','eval1')
         self.assertTrue(result['all_valid'])
         self.assertEqual(self.snapshot()[2]['during_measurement'],'kept')
@@ -108,10 +108,10 @@ class CollaborationTests(unittest.TestCase):
     def test_infrastructure_failure_is_not_silently_cached_or_retried(self):
         self.candidate()
         failed=self.fake();failed.update(valid=False,score=None,infrastructure_error=True)
-        with patch.object(sandbox,'execute',return_value=failed):
+        with patch.object(executor,'execute',return_value=failed):
             result=measure.evaluate(self.run_id,'c1','anchor-a','eval1')
         self.assertIsNone(result['score'])
-        with patch.object(sandbox,'execute',side_effect=AssertionError('must not execute')):
+        with patch.object(executor,'execute',side_effect=AssertionError('must not execute')):
             with self.assertRaisesRegex(ValueError,'reconciliation'):
                 measure.evaluate(self.run_id,'c1','anchor-a','eval2')
 
