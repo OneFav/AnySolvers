@@ -142,7 +142,7 @@ def _previous(run, state, owner=None):
 
 def _evaluation_lock_path(run, evaluation_id):
     common.identifier(evaluation_id)
-    return run / 'research/.evaluation-locks' / (evaluation_id + '.lock')
+    return common.job_runtime(run) / 'evaluations' / (evaluation_id + '.lock')
 
 
 def evaluation_active(run, evaluation_id):
@@ -281,10 +281,10 @@ def retry(run_id, evaluation_id, remote_stopped=False):
                     original['probe'], repair=True, remote_stopped=remote_stopped)
 
 
-def _collect_remote(summary, journal, cases, wait_until=None, prefix_scores=()):
+def _collect_remote(summary, journal, cases, wait_until=None, prefix_scores=(), *, job_dir):
     job = summary['remote_job']
     # Validate the entire returned journal before replacing the local copy.
-    with tempfile.TemporaryFile() as received, tempfile.NamedTemporaryFile(dir=journal.parent, delete=False) as output:
+    with tempfile.TemporaryFile(dir=job_dir) as received, tempfile.NamedTemporaryFile(dir=journal.parent, delete=False) as output:
         staging = Path(output.name)
         try:
             receipt = ssh.collect(job, received, wait_until=wait_until)
@@ -316,6 +316,7 @@ def _collect_remote(summary, journal, cases, wait_until=None, prefix_scores=()):
             elif final['completed_cases'] != len(cases):
                 raise ValueError('incomplete SSH results')
             _finish(final, scores)
+            final['remote_receipt'] = receipt
             final['finished_at'] = receipt['finished_at']
             final['evaluation_elapsed_s'] = receipt['elapsed_s']
             output.flush()
@@ -330,7 +331,7 @@ def _recover_remote(run, summary_file, cfg, pending, cases, wait_until=None):
     journal = common.contained(run, pending['details_file'])
     scores = [r['score'] for r in _settled(run, pending, cases[:pending.get('prefix', {}).get('cases', 0)])
               if r['valid']]
-    _collect_remote(pending, journal, cases, wait_until, scores)
+    _collect_remote(pending, journal, cases, wait_until, scores, job_dir=common.job_runtime(run))
     pending['results_sha'] = common.sha(journal)
     receipt = dict(config_sha=pending.get('config_sha', common.digest(cfg)), summary=pending)
     common.write_json(summary_file.parent / 'completion.json', dict(receipt=receipt, sha=common.digest(receipt)))
@@ -355,7 +356,7 @@ def _remote_evaluation(summary, directory, journal, task, source, run, dataset, 
         pass
     try:
         scores = [r['score'] for r in _settled(run, summary, cases[:summary['completed_cases']]) if r['valid']]
-        _collect_remote(summary, journal, cases, evaluation_end + 5, scores)
+        _collect_remote(summary, journal, cases, evaluation_end + 5, scores, job_dir=common.job_runtime(run))
     except Exception as exc:
         raise RemoteReceiptPending(
             f"SSH job {job['id']}: {exc}. Retrieve with tools/run.py reconcile-evaluation "
@@ -381,9 +382,9 @@ def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_
     # The old run-wide lock remains a shared compatibility gate. Independent
     # snapshots hold separate leases, while equal snapshots and IDs serialize.
     with contextlib.ExitStack() as leases:
-        leases.enter_context(_request_lock(run / 'research/.measurement.lock',
+        leases.enter_context(_request_lock(common.job_runtime(run) / '.measurement.lock',
                                            admission_deadline, shared=True, wait=research_session is not None))
-        leases.enter_context(_request_lock(run / 'research/.snapshot-locks' / (initial_sha + '.lock'),
+        leases.enter_context(_request_lock(common.job_runtime(run) / 'snapshots' / (initial_sha + '.lock'),
                                            admission_deadline, wait=research_session is not None))
         leases.enter_context(_request_lock(_evaluation_lock_path(run, evaluation_id), admission_deadline,
                                            wait=research_session is not None))
@@ -529,7 +530,7 @@ def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_
         evaluation_started = None
         try:
             slot = leases.enter_context(executor.evaluation_slot(
-                common.ROOT / "runs/.evaluation.lock", capacity, deadline_monotonic=run_deadline))
+                common.runtime_locks() / "evaluation.lock", capacity, deadline_monotonic=run_deadline))
             summary['admission_queue_wait_s'] = time.monotonic() - queued_at
             with common.mutation(run, wait=True):
                 _, fresh, current = common.load_run(run_id)
@@ -563,13 +564,13 @@ def evaluate(run_id, candidate_id, dataset_id, evaluation_id, probe=False, task_
                     try:
                         if task.protocol['kind'] == 'episode':
                             result = executor.execute_episode(source, case["input"],
-                                config["compute"]["limits"], task, common.ROOT / "runs/.evaluation.lock",
+                                config["compute"]["limits"], task, common.runtime_locks() / "evaluation.lock",
                                 max_steps=task.protocol['max_steps'], action_wall_s=task.protocol['action_wall_s'],
-                                deadline_monotonic=deadline, evaluation_slot_token=slot)
+                                deadline_monotonic=deadline, evaluation_slot_token=slot, job_dir=common.job_runtime(run))
                         else:
                             result = executor.execute(source, case["input"],
-                                config["compute"]["limits"], task.score, common.ROOT / "runs/.evaluation.lock",
-                                deadline_monotonic=deadline, evaluation_slot_token=slot)
+                                config["compute"]["limits"], task.score, common.runtime_locks() / "evaluation.lock",
+                                deadline_monotonic=deadline, evaluation_slot_token=slot, job_dir=common.job_runtime(run))
                     except Exception as exc:
                         # An unexpected helper failure has unknown cleanup state; never retry.
                         result = {"valid": False, "score": None, "solution": None, "metrics": {},

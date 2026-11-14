@@ -22,6 +22,19 @@ class BatchTests(unittest.TestCase):
     def second(self):
         return run.init('contract-study', 'configs/smoke.yaml', new_batch=True)['run_id']
 
+    def test_study_layout_and_read_only_reopen(self):
+        batch = common.run_path(self.run_id)
+        study = batch.parent
+        self.assertEqual({p.name for p in study.iterdir()}, {'initialization', '001', 'cache'})
+        (common.study_cache(study.name) / 'prepared.bin').write_bytes(b'cache')
+        before = {name: (batch/name).read_bytes() for name in ('state.json', 'run.yaml', 'events.jsonl')}
+        self.assertEqual(run.init(study.name)['run_id'], self.run_id)
+        self.assertEqual({name: (batch/name).read_bytes() for name in before}, before)
+        self.assertEqual(self.second(), study.name + '/002')
+        with common.mutation(batch):
+            self.assertTrue((self.root/'runtime/jobs'/self.run_id/'.mutation.lock').is_file())
+        self.assertFalse((batch/'.mutation.lock').exists())
+
     def test_shared_inputs_do_not_share_result_cache_or_candidates(self):
         first, second = self.run_id, self.second()
         initialization = self.root/'runs/contract-study/initialization'
@@ -38,6 +51,7 @@ class BatchTests(unittest.TestCase):
                 cached=measure.evaluate(ref,'candidate-a','anchor-a','eval-a')
                 self.assertTrue(cached['cached'])
             self.assertEqual(execute.call_count,2)
+            self.assertEqual({call.args[-1].parent for call in execute.call_args_list}, {self.root/'runtime/locks'})
         for ref in (first,second):
             directory,cfg,state=common.load_run(ref)
             self.assertEqual(state['evaluations']['eval-a'],'research/evaluations/eval-a/summary.json')

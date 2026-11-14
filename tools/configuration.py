@@ -1,5 +1,6 @@
 """One shared base plus sparse run overrides; expanded configuration lives in memory."""
 import copy
+import hashlib
 import yaml
 
 from tools import common as c
@@ -55,8 +56,13 @@ def prepare(config_path):
 
 
 def frozen_base(lock):
-    raw = yaml.load(c.read_pinned(lock['base'], 'base configuration').decode('utf-8'),
-                    Loader=c.StrictLoader)
+    if 'base_yaml' in lock:
+        source = lock['base_yaml']
+        if not isinstance(source, str) or hashlib.sha256(source.encode('utf-8')).hexdigest() != lock['base']['sha']:
+            raise ValueError('frozen base configuration changed')
+    else:
+        source = c.read_pinned(lock['base'], 'base configuration').decode('utf-8')
+    raw = yaml.load(source, Loader=c.StrictLoader)
     c.validate('config_template', raw)
     return raw
 

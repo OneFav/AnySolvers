@@ -38,22 +38,25 @@ def init(reference, config_path=None, researchers=None, rounds=None, new_batch=F
         else:
             numbers = sorted(int(p.name) for p in directory.iterdir()
                              if p.name.isascii() and p.name.isdigit())
-            initialized = [n for n in numbers if
-                           (contained(directory, format(n, '03d'))/'state.json').is_file()]
-            number = initialized[-1] if initialized and not new_batch else max(numbers, default=0) + 1
+            initialized = [n for n in numbers
+                           if (contained(directory, format(n, '03d')) / 'state.json').is_file()]
+            number = (initialized[-1] if initialized and not new_batch
+                      else max(numbers, default=0) + 1)
             run_id = f'{study_id}/{number:03d}'
-        if not (run_path(run_id)/'state.json').exists():
+        batch = run_path(run_id)
+        if not (batch / 'state.json').is_file():
             return _init(run_id, config_path, researchers, rounds, initialization, manifest)
-    # Release the study lock before opening the batch.
-    document = read_yaml(run_path(run_id)/'run.yaml')
-    if config_path and config_path != document['extends']:
-        raise ValueError('edit this batch run.yaml and resume, or request --new-batch')
-    if researchers is not None or rounds is not None:
-        cfg = overlay(document, read_base(document['extends']))
-        for key, value in [('researchers', researchers), ('rounds_per_researcher', rounds)]:
-            if value is not None and cfg['budgets'][key] != value:
-                raise ValueError('change the budget in this batch run.yaml and resume')
-    return resume(run_id)
+
+    # Opening a batch must not adopt changes to its frozen configuration.
+    _, cfg, _ = load_run(run_id, read_only=True)
+    document = read_yaml(batch / 'run.yaml')
+    if config_path is not None and config_path != document['extends']:
+        raise ValueError('existing batch uses another config; use --new-batch')
+    for key, value in (('researchers', researchers), ('rounds_per_researcher', rounds)):
+        if value is not None and value != cfg['budgets'][key]:
+            raise ValueError('existing batch has a different budget; use --new-batch')
+    return {'run_id': run_id, 'config': str((batch / 'run.yaml').relative_to(c.ROOT)),
+            'initialization': cfg['initialization']}
 
 
 def _init(run_id, config_path, researchers, rounds, initialization, manifest):
@@ -137,7 +140,8 @@ def _configuration(run_id, document, base, initialization, manifest, shared_ref,
         raise ValueError('base configuration changed during initialization')
     read_pinned(shared_ref, 'shared initialization manifest')
     lock = {key:copy.deepcopy(cfg[key]) for key in ('run_id','created_at','task','modules','_pins','initialization','implementation_sha')}
-    lock.update(base=base_ref, document_sha=digest(document))
+    lock.update(base=base_ref, base_yaml=read_pinned(base_ref, 'base configuration').decode('utf-8'),
+                document_sha=digest(document))
     if effective(document,lock) != cfg:
         raise ValueError('resolved configuration mismatch')
     return cfg, lock
@@ -163,7 +167,7 @@ def resume(run_id, scorer=None):
         _, _, view = load_run(run_id, proposed=state)
         if previous != state['config_sha'] or scorer:
             # A live local measurement keeps this shared lease until its state commit.
-            lease = run/'research/.measurement.lock'
+            lease = c.job_runtime(run) / '.measurement.lock'
             with lease.open('a+') as stream:
                 fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 if scorer:

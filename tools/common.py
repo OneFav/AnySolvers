@@ -292,6 +292,19 @@ def run_path(run_id):
     return contained(ROOT / 'runs', run_identifier(run_id))
 
 
+def study_cache(study):
+    return contained(ROOT, Path('runs') / identifier(study) / 'cache')
+
+
+def runtime_locks():
+    return contained(ROOT, 'runtime/locks')
+
+
+def job_runtime(run):
+    relative = Path(run).relative_to(ROOT / 'runs').as_posix()
+    return contained(ROOT, Path('runtime/jobs') / run_identifier(relative))
+
+
 def run_identifier(value):
     """A study/number reference, or a historical flat run ID for inspection."""
     if not isinstance(value, str):
@@ -329,7 +342,9 @@ def output_relative(run_id, kind, filename):
 
 @contextlib.contextmanager
 def mutation(run_dir, wait=False):
-    with (Path(run_dir) / '.mutation.lock').open('a+') as f:
+    directory = job_runtime(run_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / '.mutation.lock').open('a+') as f:
         try:
             fcntl.flock(f, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
         except BlockingIOError:

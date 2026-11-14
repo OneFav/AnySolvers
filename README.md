@@ -63,8 +63,9 @@ configs/smoke.yaml            # use 指向具体方法目录
 tools/                       # 主会话工具及通用命令入口
 runs/STUDY/
   initialization/{task,datasets,ideas}/
-  001/run.yaml
-  002/run.yaml
+  cache/                       # 此研究可重建的准备文件
+  001/run.yaml                 # 后续独立批次按需创建
+runtime/{locks,jobs}/          # 项目共享资源锁和按批次存放的临时作业
 ```
 
 备用区目前有 `datasets/feedback_challenges`，用于候选反馈驱动的困难实例。它包含自己的说明、校验代码和格式定义，不借用在用方法的文件。更换时移动完整目录并修改 `modules.<类别>.use`，详见 [MODULES.md](docs/MODULES.md)。

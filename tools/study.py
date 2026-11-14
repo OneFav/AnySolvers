@@ -199,7 +199,9 @@ def _adopt_prepared(study, directory, config_path):
     """Register a task prepared directly in initialization, without duplicating it."""
     root = c.contained(directory, 'initialization')
     task_root = c.contained(root, 'task')
-    if (set(p.name for p in directory.iterdir()) != {'initialization'} or
+    cache = c.study_cache(study)
+    if (set(p.name for p in directory.iterdir()) - {'cache'} != {'initialization'} or
+            (cache.exists() and not cache.is_dir()) or
             not root.is_dir() or set(p.name for p in root.iterdir()) != {'task'} or
             not task_root.is_dir()):
         raise ValueError('study path already exists; only an unregistered initialization/task is allowed')
@@ -219,6 +221,7 @@ def _adopt_prepared(study, directory, config_path):
     _validate_manifest(root, manifest, study)
     for name in ('datasets', 'ideas'):
         (root / name).mkdir()
+    c.study_cache(study).mkdir(exist_ok=True)
     c.write_json(root / 'manifest.json', manifest)
     return {'study_id': study, 'status': 'draft', 'initialization': str(root.relative_to(c.ROOT))}
 
@@ -275,6 +278,7 @@ def create(study, config_path):
                                 'modules': cfg['modules'], 'max_cases_per_dataset': cfg['budgets']['max_cases_per_dataset'],
                                 'deliveries': {'dataset': {}, 'ideas': {}}, 'source': source}
                     _validate_manifest(root, manifest, study)
+                    c.study_cache(study).mkdir(exist_ok=True)
                     c.write_json(root / 'manifest.json', manifest)
                 finally:
                     if staging.exists():

@@ -44,7 +44,7 @@ description: "初始化 AnySolvers 工作环境：交互明确问题、数据和
 .venv/bin/python -B tools/run.py study-init STUDY --config configs/STUDY.yaml
 ```
 
-原地准备时，此刻 study 只能包含 `initialization/task/` 中的这两文件；不可提前创建 datasets、ideas 或编号批次，否则初始化会拒绝。`study-init` 登记任务，不会自动编写仿真器或算法。
+可重建的准备文件放在 `runs/STUDY/cache/`。原地准备任务时，初始化输入只能包含 `initialization/task/` 中的这两文件；不可提前创建 datasets、ideas 或编号批次，否则初始化会拒绝。`study-init` 登记任务，不会自动编写仿真器或算法。
 
 ## 3. 建立可执行评测环境与初始 ideas
 

@@ -134,22 +134,22 @@ def _slot_guard(path, token):
 
 
 
-def execute(source, case, limits, scorer, lock_path, *, deadline_monotonic=None, evaluation_slot_token=None):
+def execute(source, case, limits, scorer, lock_path, *, deadline_monotonic=None, evaluation_slot_token=None, job_dir=None):
     queued = time.monotonic()
     with _slot_guard(lock_path, evaluation_slot_token):
         wait = time.monotonic() - queued
         result = run_case(source, case, limits, SimpleNamespace(score=scorer),
-                          {"kind": "function"}, deadline_monotonic)
+                          {"kind": "function"}, deadline_monotonic, job_dir=job_dir)
         result["queue_wait_s"] = wait
         return result
 
 
 def execute_episode(source, case, limits, environment, lock_path, *, max_steps, action_wall_s,
-                    deadline_monotonic=None, evaluation_slot_token=None):
+                    deadline_monotonic=None, evaluation_slot_token=None, job_dir=None):
     queued = time.monotonic()
     with _slot_guard(lock_path, evaluation_slot_token):
         wait = time.monotonic() - queued
         protocol = {"kind": "episode", "max_steps": max_steps, "action_wall_s": action_wall_s}
-        result = run_case(source, case, limits, environment, protocol, deadline_monotonic)
+        result = run_case(source, case, limits, environment, protocol, deadline_monotonic, job_dir=job_dir)
         result["queue_wait_s"] = wait
         return result

@@ -105,6 +105,7 @@ os.execv('/bin/sh', ['sh', '-c', sys.argv[-1]])
         details = measure.details(run_id, 'remote-eval')
         self.assertEqual(details['summary']['score'], 1)
         self.assert_episode_visibility([r for r in details['records'] if r['type']=='result'], rows)
+        self.assertEqual(details['summary']['remote_receipt'], receipt)
         self.assertEqual(details['summary']['finished_at'], receipt['finished_at'])
         self.assertEqual(list(jobs.iterdir()), [job])
         # A second batch reuses the same cache independently of evaluation IDs.

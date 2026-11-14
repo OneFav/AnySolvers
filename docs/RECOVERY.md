@@ -7,7 +7,7 @@
 .venv/bin/python -B tools/run.py status study/003
 ```
 
-恢复会核对原输入、交付、历史摘要和案例日志，并采用当前 run.yaml、基础配置和本地执行器。重复恢复沿用原编号、会话、评测额度和创建时间。直接执行 init STUDY 会复用最近已初始化的编号。需要独立对照时用 `init STUDY --config configs/STUDY.yaml --new-batch`。
+恢复会核对原输入、交付、历史摘要和案例日志，并采用当前 run.yaml、基础配置和本地执行器。重复恢复沿用原编号、会话、评测额度和创建时间。直接执行 init STUDY 只打开最近的批次；采用修改后的配置需显式执行 resume。需要独立对照时用 `init STUDY --config configs/STUDY.yaml --new-batch`。
 
 ## 评测中断
 
